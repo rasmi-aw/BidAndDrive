@@ -89,6 +89,26 @@ public final class Auction {
         return new Bid(BidId.newId(), id, bidder.getId(), amount, now);
     }
 
+    /**
+     * Ends the auction and awards it to the highest bidder, if any.
+     */
+    public void close() {
+        ensureRunning();
+        status = AuctionStatus.ENDED;
+        wonByUserId = highestBidderId;
+    }
+
+    public void cancel() {
+        ensureRunning();
+        status = AuctionStatus.CANCELLED;
+    }
+
+    private void ensureRunning() {
+        if (status != AuctionStatus.RUNNING) {
+            throw new AuctionNotRunningException(id, status);
+        }
+    }
+
     private void ensureOpenForBidding(Instant now) {
         if (status != AuctionStatus.RUNNING) {
             throw new AuctionNotOpenForBiddingException(id, "status is " + status);
