@@ -479,6 +479,43 @@ Built in 5 TDD steps. Each step: tests written first and seen failing, then impl
 
 - **Verified:** real Keycloak — each of the 4 accounts logs in with the right role, name, email, phone and `auction-api` audience; the old `buyer` account is gone. All README anchors and file links checked.
 
+**Status:** ✅ Validated
+
+---
+
+## Prompt 17 — Centralized exception handling? (question)
+
+**Date:** 2026-10-18
+
+### Prompt
+
+> have you used a centralized exception handling mechanism ? based on @ControllerAdvice and @ExceptionHnadler
+
+### Response
+
+- Yes: `ApiExceptionHandler` is a `@RestControllerAdvice` extending `ResponseEntityExceptionHandler`, with `@ExceptionHandler` methods mapping each domain exception to a `ProblemDetail` (400 invalid-value, 403 forbidden / incomplete-identity, 404 not-found, 409 bid-too-low / auction-not-open / concurrent-modification, 422 fallback); Spring MVC errors come from the base class, with `handleMethodArgumentNotValid` overridden to add field errors.
+- 401/403 raised by Spring Security happen in the filter chain, before any controller, so `SecurityProblemHandler` (entry point + access-denied handler) writes the same ProblemDetail format.
+- No code changed.
+
+**Status:** ✅ Validated
+
+---
+
+## Prompt 18 — Registration year >= year made, front and back
+
+**Date:** 2026-10-18
+
+### Prompt
+
+> car registration year should be >= Year made should be validated in both front and back did u do it ?
+
+### Response
+
+- **Before:** backend yes (domain `CarDetails`, `CarDetailsTest`), but not tested at the API level; frontend **no** (only the server's message in the general alert after submitting).
+- `b90ad05`: API tests — registration before manufacture → 400 `invalid-value`; same year → 201.
+- `c0d44d2`: frontend — `useCreateAuction` checks the rule before calling the API and shows "must not be before the year made (…)" next to the *Year registered* field (same `ApiError` shape as server errors); missing values are still left to the server; the input's `min` follows the year made. 3 new Vitest tests (written first, the rule test failed before the fix).
+- **Verified:** `npm test` 37 passed, `npm run build` OK, `mvn verify` 116 + 30 + 57 tests green.
+
 **Status:** ⏳ Waiting for your validation
 
 ---
