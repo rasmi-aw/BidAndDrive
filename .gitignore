@@ -1,0 +1,4 @@
+# local environment files hold secrets; only the example is versioned
+.env
+.env.*
+!.env.prod.example
