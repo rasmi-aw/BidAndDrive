@@ -516,6 +516,44 @@ Built in 5 TDD steps. Each step: tests written first and seen failing, then impl
 - `c0d44d2`: frontend — `useCreateAuction` checks the rule before calling the API and shows "must not be before the year made (…)" next to the *Year registered* field (same `ApiError` shape as server errors); missing values are still left to the server; the input's `min` follows the year made. 3 new Vitest tests (written first, the rule test failed before the fix).
 - **Verified:** `npm test` 37 passed, `npm run build` OK, `mvn verify` 116 + 30 + 57 tests green.
 
+**Status:** ✅ Validated
+
+---
+
+## Prompt 19 — Domain events, Kafka, SSE live bids
+
+**Date:** 2026-10-18
+
+### Prompt
+
+> add domain events BidPlaced and AuctionClosed, raised by the Auction aggregate (pure java, no spring in domain).
+> define an outbound port DomainEventPublisher in domain, kafka adapter in infra (topics auction.bids, auction.closed), publish only after commit (@TransactionalEventListener AFTER_COMMIT).
+> add a kafka consumer that pushes new bids to the front via SSE: GET /api/auctions/{id}/stream.
+> add kafka to docker-compose. test with testcontainers kafka. front: auction detail page subscribes to the stream and updates the highest bid live.
+
+### Response
+
+| Commit | Content |
+|---|---|
+| `c6b968d` | Domain: `DomainEvent`, `BidPlaced`, `AuctionClosed`, port `DomainEventPublisher`; `Auction` records events, `pullEvents()`; `close(Clock)`; PlaceBid/CloseAuction publish after saving (never on rejection); Spring application-event adapter |
+| `d3f75dd` | Infra: `@TransactionalEventListener(AFTER_COMMIT)` relay → `auction.bids` / `auction.closed` (key = auction id, JSON wire records); per-instance consumer → `AuctionEventSubscriber` inbound port; malformed records skipped; `auction.kafka.enabled` switch; Testcontainers Kafka tests |
+| `98d1932` | App: SSE `GET /api/auctions/{id}/stream` (`connected`/`bid`/`closed`, 20 s heartbeat, `X-Accel-Buffering: no`), authenticated, async dispatch permitted, `stream` HAL link on running auctions |
+| `0d9cc3b` | Kafka (KRaft, `apache/kafka:3.9.2`) in dev + prod compose; `run.sh` port check |
+| `d8b4d91` | Frontend: SSE over `fetch` (bearer token) + parser, `useAuctionStream` (live bids, reload on close, reconnect + catch-up), *Live* badge and highlight |
+| docs commit | CLAUDE.md + README (architecture section with flow, US8, skipped: outbox) |
+
+- **Decisions to review:**
+  - **Broker version 3.9.2, not 4.x:** Spring Boot 3.5 ships kafka-clients 3.9.2, and Testcontainers 1.21 cannot start 4.x brokers (the container exited during the first run).
+  - **SSE needs a token** (consistent with other reads), so the frontend reads it with `fetch` instead of `EventSource`.
+  - **At-most-once delivery** after commit (documented; an outbox would make it at-least-once).
+  - Kafka is off in the H2 app tests (`auction.kafka.enabled=false`), otherwise every committed bid would wait up to 60 s for a broker; Kafka is tested with Testcontainers in infra.
+  - `Auction.close()` now takes a `Clock` (event timestamp).
+- **Verified:**
+  - backend `mvn verify` → 122 + 36 + 64 tests; frontend `npm test` → 47, `npm run build` OK.
+  - After-commit guarantee proven by mutation: replacing the listener with a plain `@EventListener` fails the rollback and no-transaction tests.
+  - Real stack via `./run.sh`: a bid placed by buyer2 arrived on buyer1's SSE stream through nginx and on the `auction.bids` topic (key = auction id); the real frontend client (`src/api/sse.ts`, run with vite-node) received the bid event too.
+  - The user's running dev stack was updated in place (backend rebuilt, Kafka added, frontend rebuilt); two test auctions ("SSE live test", "Frontend stream check") were created in it.
+
 **Status:** ⏳ Waiting for your validation
 
 ---
