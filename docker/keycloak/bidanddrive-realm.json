@@ -88,21 +88,69 @@
       ]
     },
     {
-      "username": "buyer",
+      "username": "buyer1",
       "enabled": true,
       "emailVerified": true,
-      "firstName": "Bob",
-      "lastName": "Buyer",
-      "email": "buyer@bidanddrive.local",
+      "firstName": "Alice",
+      "lastName": "Martin",
+      "email": "buyer1@bidanddrive.local",
       "attributes": {
         "phoneNumber": [
-          "+33600000002"
+          "+33600000011"
         ]
       },
       "credentials": [
         {
           "type": "password",
-          "value": "buyer",
+          "value": "buyer1",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "default-roles-bidanddrive",
+        "BUYER"
+      ]
+    },
+    {
+      "username": "buyer2",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Bruno",
+      "lastName": "Dubois",
+      "email": "buyer2@bidanddrive.local",
+      "attributes": {
+        "phoneNumber": [
+          "+33600000012"
+        ]
+      },
+      "credentials": [
+        {
+          "type": "password",
+          "value": "buyer2",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "default-roles-bidanddrive",
+        "BUYER"
+      ]
+    },
+    {
+      "username": "buyer3",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Chloe",
+      "lastName": "Bernard",
+      "email": "buyer3@bidanddrive.local",
+      "attributes": {
+        "phoneNumber": [
+          "+33600000013"
+        ]
+      },
+      "credentials": [
+        {
+          "type": "password",
+          "value": "buyer3",
           "temporary": false
         }
       ],

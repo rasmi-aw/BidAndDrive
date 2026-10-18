@@ -84,7 +84,7 @@ docker compose up -d postgres keycloak       # infrastructure only, to run the b
 cd backend
 mvn verify                                   # full build + tests (definition of done)
 java -jar auction-app/target/auction-app-0.0.1-SNAPSHOT.jar   # run the app after verify; defaults match docker compose
-# token for a test user (seller/seller or buyer/buyer):
+# token for a test user (seller/seller, buyer1/buyer1, buyer2/buyer2, buyer3/buyer3; see README):
 curl -s -X POST http://localhost:8180/realms/bidanddrive/protocol/openid-connect/token \
   -d grant_type=password -d client_id=auction-frontend -d username=seller -d password=seller
 ```

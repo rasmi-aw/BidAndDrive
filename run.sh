@@ -116,7 +116,7 @@ start() {
 
 ${GREEN}${BOLD}BidAndDrive is running.${RESET}
 
-  App              http://localhost:$FRONTEND_PORT        log in as seller/seller or buyer/buyer
+  App              http://localhost:$FRONTEND_PORT        see "Test accounts" in README.md (seller/seller, buyer1/buyer1 …)
   API (Swagger)    http://localhost:$BACKEND_PORT/swagger-ui/index.html
   Keycloak admin   http://localhost:$KEYCLOAK_PORT        admin/admin
   PostgreSQL       localhost:$POSTGRES_PORT  db auction   auction/auction
