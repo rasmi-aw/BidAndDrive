@@ -1,0 +1,38 @@
+# Local stack: PostgreSQL for the API and Keycloak with the "bidanddrive" realm.
+# The API itself runs from the IDE or with `java -jar` (see CLAUDE.md).
+name: bidanddrive
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: auction
+      POSTGRES_USER: auction
+      POSTGRES_PASSWORD: auction
+    ports:
+      - "${POSTGRES_PORT:-5433}:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U auction -d auction"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.8.1
+    # dev mode: embedded storage, realm (re)imported from ./docker/keycloak when it does not exist yet
+    command: ["start-dev", "--import-realm"]
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: admin
+      # fixed public URL so the token issuer is always http://localhost:8180/realms/bidanddrive
+      KC_HOSTNAME: "http://localhost:${KEYCLOAK_PORT:-8180}"
+      KC_HEALTH_ENABLED: "true"
+    ports:
+      - "${KEYCLOAK_PORT:-8180}:8080"
+    volumes:
+      - ./docker/keycloak:/opt/keycloak/data/import:ro
+
+volumes:
+  postgres-data:
