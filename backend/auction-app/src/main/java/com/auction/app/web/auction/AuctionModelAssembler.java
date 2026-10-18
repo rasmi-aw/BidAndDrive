@@ -1,5 +1,7 @@
 package com.auction.app.web.auction;
 
+import com.auction.app.web.stream.AuctionStreamController;
+import com.auction.domain.auction.AuctionStatus;
 import com.auction.domain.auction.AuctionSummary;
 import lombok.RequiredArgsConstructor;
 import org.springframework.hateoas.EntityModel;
@@ -13,7 +15,7 @@ import static org.springframework.hateoas.server.mvc.WebMvcLinkBuilder.linkTo;
 import static org.springframework.hateoas.server.mvc.WebMvcLinkBuilder.methodOn;
 
 /**
- * Links: self, bids, and place-bid only while the auction accepts bids.
+ * Links: self, bids, stream while RUNNING, and place-bid only while the auction accepts bids.
  */
 @Component
 @RequiredArgsConstructor
@@ -21,6 +23,7 @@ class AuctionModelAssembler implements RepresentationModelAssembler<AuctionSumma
 
     static final String PLACE_BID = "place-bid";
     static final String BIDS = "bids";
+    static final String STREAM = "stream";
 
     private final Clock clock;
 
@@ -30,6 +33,9 @@ class AuctionModelAssembler implements RepresentationModelAssembler<AuctionSumma
         EntityModel<AuctionResponse> model = EntityModel.of(AuctionResponse.from(summary),
                 linkTo(methodOn(AuctionController.class).getAuction(id)).withSelfRel(),
                 linkTo(AuctionBidController.class, id).withRel(BIDS));
+        if (summary.status() == AuctionStatus.RUNNING) {
+            model.add(linkTo(methodOn(AuctionStreamController.class).stream(id, null)).withRel(STREAM));
+        }
         if (summary.isOpenForBidding(clock.instant())) {
             model.add(linkTo(methodOn(AuctionBidController.class).placeBid(id, null, null)).withRel(PLACE_BID));
         }
