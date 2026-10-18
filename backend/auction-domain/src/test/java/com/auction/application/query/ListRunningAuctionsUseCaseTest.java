@@ -2,6 +2,7 @@ package com.auction.application.query;
 
 import com.auction.domain.auction.AuctionId;
 import com.auction.domain.auction.AuctionReadRepository;
+import com.auction.domain.auction.AuctionStatus;
 import com.auction.domain.auction.AuctionSummary;
 import com.auction.domain.auction.CarCondition;
 import com.auction.domain.shared.DomainValidationException;
@@ -66,6 +67,6 @@ class ListRunningAuctionsUseCaseTest {
 
     private static AuctionSummary summary() {
         return new AuctionSummary(AuctionId.newId(), UserId.newId(), "Peugeot 308", CarCondition.GOOD,
-                Year.of(2018), Year.of(2019), Money.of("1000"), null, START, END);
+                Year.of(2018), Year.of(2019), Money.of("1000"), null, START, END, AuctionStatus.RUNNING);
     }
 }

@@ -62,7 +62,8 @@ final class AuctionMapper {
                 new Money(entity.getStartPrice()),
                 money(entity.getCurrentHighestBid()),
                 entity.getStartDate(),
-                entity.getEndDate());
+                entity.getEndDate(),
+                entity.getStatus());
     }
 
     private static CarDetails carDetails(AuctionEntity entity) {

@@ -2,7 +2,9 @@ package com.auction.infrastructure.persistence.auction;
 
 import com.auction.domain.auction.Auction;
 import com.auction.domain.auction.AuctionReadRepository;
+import com.auction.domain.auction.AuctionId;
 import com.auction.domain.auction.AuctionRepository;
+import com.auction.domain.auction.AuctionStatus;
 import com.auction.domain.auction.AuctionSummary;
 import com.auction.domain.shared.Money;
 import com.auction.domain.shared.Page;
@@ -93,6 +95,27 @@ class AuctionReadPersistenceAdapterTest extends PostgresIntegrationTest {
         assertThat(summary.startPrice()).isEqualTo(Money.of("1000"));
         assertThat(summary.currentHighestBid()).isEqualTo(Money.of("1250"));
         assertThat(summary.endDate()).isEqualTo(endsSecond.getEndDate());
+    }
+
+    @Test
+    void findsOneAuctionByIdWhateverItsStatus() {
+        Auction ended = newAuction(seller, NOW.minus(hours(1)), NOW.plus(hours(5)));
+        ended.close();
+        save(ended);
+
+        assertThat(auctionReadRepository.findById(ended.getId()))
+                .get().extracting(AuctionSummary::status).isEqualTo(AuctionStatus.ENDED);
+        assertThat(auctionReadRepository.findById(endsSecond.getId()))
+                .get().extracting(AuctionSummary::currentHighestBid).isEqualTo(Money.of("1250"));
+    }
+
+    @Test
+    void unknownOrSoftDeletedAuctionIsNotFoundById() {
+        Auction auction = save(newAuction(seller, NOW.minus(hours(1)), NOW.plus(hours(5))));
+        jdbcTemplate.update("UPDATE auctions SET deleted = TRUE WHERE id = ?", auction.getId().value());
+
+        assertThat(auctionReadRepository.findById(auction.getId())).isEmpty();
+        assertThat(auctionReadRepository.findById(AuctionId.newId())).isEmpty();
     }
 
     private Auction save(Auction auction) {

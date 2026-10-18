@@ -1,5 +1,7 @@
 package com.auction.infrastructure.persistence.auction;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.repository.Repository;
 
 import java.util.UUID;
@@ -10,4 +12,6 @@ import java.util.UUID;
 interface BidJpaRepository extends Repository<BidEntity, UUID> {
 
     BidEntity save(BidEntity entity);
+
+    Page<BidEntity> findByAuctionId(UUID auctionId, Pageable pageable);
 }

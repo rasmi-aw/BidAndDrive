@@ -19,5 +19,13 @@ public record AuctionSummary(
         Money startPrice,
         Money currentHighestBid,
         Instant startDate,
-        Instant endDate) {
+        Instant endDate,
+        AuctionStatus status) {
+
+    /**
+     * Same window rule as {@link Auction#placeBid}: RUNNING and {@code now} within [startDate, endDate).
+     */
+    public boolean isOpenForBidding(Instant now) {
+        return status == AuctionStatus.RUNNING && !now.isBefore(startDate) && now.isBefore(endDate);
+    }
 }

@@ -1,5 +1,6 @@
 package com.auction.infrastructure.persistence.auction;
 
+import com.auction.domain.auction.AuctionId;
 import com.auction.domain.auction.AuctionReadRepository;
 import com.auction.domain.auction.AuctionStatus;
 import com.auction.domain.auction.AuctionSummary;
@@ -12,6 +13,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.util.Optional;
 
 @Component
 @RequiredArgsConstructor
@@ -21,6 +23,12 @@ class AuctionReadPersistenceAdapter implements AuctionReadRepository {
     private static final Sort ENDING_SOONEST_FIRST = Sort.by("endDate", "id");
 
     private final AuctionJpaRepository jpaRepository;
+
+    @Override
+    @Transactional(readOnly = true)
+    public Optional<AuctionSummary> findById(AuctionId id) {
+        return jpaRepository.findById(id.value()).map(AuctionMapper::toSummary);
+    }
 
     @Override
     @Transactional(readOnly = true)
