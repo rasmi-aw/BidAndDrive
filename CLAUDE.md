@@ -35,6 +35,14 @@ auction_mvp/
 - JPA entities (`*Entity`) live in `com.auction.infrastructure.persistence.*` and are mapped by static mappers (`*Mapper`); domain objects are rebuilt with `restore(...)` factories.
 - **Optimistic locking on `auctions`** (`@Version`): `AuctionPersistenceAdapter.save` rejects a domain object loaded at an older version and translates Hibernate conflicts into the domain `AuctionConcurrentlyModifiedException`. A use case that saves several aggregates (e.g. `PlaceBid`: auction then bid) must run in one transaction.
 
+### REST API (`auction-app`)
+- Controllers in `com.auction.app.web.*` call use cases only (never repositories) and map request DTOs (records with Bean Validation) to commands/queries. Format checks live in DTOs; business rules stay in the domain.
+- Use cases are registered in `UseCaseConfig` and wrapped by `TransactionalProxies` (commands read-write, queries read-only). Add every new use case there.
+- Responses are HAL (`spring-boot-starter-hateoas`): `EntityModel` with `self` / `bids` / `place-bid` (only while open for bidding) links; paged lists via `PagedModels` (self/prev/next + `page` metadata). An empty page has no `_embedded` key.
+- Errors are RFC 9457 `ProblemDetail` from `ApiExceptionHandler`, `type` = `urn:bidanddrive:problem:<slug>`: 400 validation / invalid-value, 403 forbidden (role rules), 404 not-found, 409 bid-too-low / auction-not-open / concurrent-modification, 422 for any unmapped domain rule. Map each new domain exception explicitly.
+- The caller is identified by the `X-User-Id` header — a stand-in until authentication exists, not a security mechanism.
+- OpenAPI via springdoc at `/v3/api-docs` and `/swagger-ui/index.html`; declare status codes with `@ApiResponse`; error bodies are documented as `ProblemDetail` automatically.
+
 ## Workflow
 
 ### TDD
@@ -65,6 +73,7 @@ java -jar auction-app/target/auction-app-0.0.1-SNAPSHOT.jar   # run the app afte
 - Library versions live in `backend/pom.xml` only; child POMs declare dependencies without versions.
 - `auction-domain` has a `maven-enforcer` rule that fails the build on any Spring / JPA / Hibernate dependency.
 - The context test uses H2 through the `test` profile (`auction-app/src/test/resources/application-test.yml`); Flyway migrates it and Hibernate validates the mapping.
+- API tests extend `ApiIntegrationTest` (full app, MockMvc, H2, tables cleared before each test; seed users through `UserRepository`).
 - Infrastructure tests run against real PostgreSQL via Testcontainers (Docker required): extend `PostgresIntegrationTest` (one shared `postgres:17-alpine` container, tables truncated before each test).
 - Architecture rules are enforced by `auction-app/src/test/java/com/auction/app/architecture/ArchitectureTest.java` (ArchUnit): domain depends only on the JDK and itself, application only on domain + JDK, command and query use cases don't depend on each other, infrastructure never depends on app, controllers never touch repositories (Spring Data, `@Repository`, or `*Repository` ports) and go through use cases instead.
 - To build or test a single module, add `-am` so sibling modules are built too, e.g. `mvn -pl auction-app -am test -Dtest=ArchitectureTest -Dsurefire.failIfNoSpecifiedTests=false`.

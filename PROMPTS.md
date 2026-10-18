@@ -213,6 +213,54 @@ Built in 5 TDD steps. Each step: tests written first and seen failing, then impl
   - **Not done yet:** transactional wiring of the use cases in `auction-app` (`PlaceBid` must be one transaction), and HTTP 409 mapping for the concurrency exception.
 - **Verified:** `mvn clean verify` → BUILD SUCCESS: 99 domain/application, 21 infrastructure (Testcontainers), 8 app tests.
 
+**Status:** ✅ Validated
+
+---
+
+## Prompt 8 — REST API, ProblemDetail, HATEOAS, OpenAPI
+
+**Date:** 2026-10-18
+
+### Prompt
+
+> expose in auction-app:
+> POST /api/auctions (seller), GET /api/auctions/running (paged, public), POST /api/auctions/{id}/bids (buyer)
+> DTOs with validation, global error handler with ProblemDetail (400 validation, 403 wrong role, 404, 409 on optimistic lock conflict).
+> add HATEOAS links (self, bids, place-bid when running). openapi doc via springdoc.
+> integration tests with MockMvc for each endpoint happy + error paths.
+
+### Response
+
+| Commit | Content |
+|---|---|
+| `ac8a76f` | Read side for links: `GetAuction`, `ListAuctionBids` queries, `BidReadRepository`, `AuctionSummary.status` + `isOpenForBidding(now)`; JPA adapters + Testcontainers tests |
+| `0a15e2a` | Use cases wired as Spring beans, wrapped in transactions (commands read-write, queries read-only); `Clock` bean |
+| `35ffe09` | `AuctionSummary` includes the car description |
+| `f6f95e4` | Controllers, DTOs, HAL assemblers, `ApiExceptionHandler`, MockMvc tests |
+| `457f6bf` | springdoc OpenAPI: info, header, per-endpoint codes, `ProblemDetail` error schema |
+
+**Endpoints**
+
+| Method & path | Who | Success |
+|---|---|---|
+| `POST /api/auctions` | SELLER (`X-User-Id`) | 201 + `Location` |
+| `GET /api/auctions/running?page&size` | public | 200 paged |
+| `GET /api/auctions/{id}` | public | 200 *(added: target of `self`)* |
+| `POST /api/auctions/{id}/bids` | BUYER (`X-User-Id`) | 201 |
+| `GET /api/auctions/{id}/bids?page&size` | public | 200 paged, newest first *(added: target of `bids`)* |
+
+- **Errors (ProblemDetail, `urn:bidanddrive:problem:*`):** 400 validation (with `errors[]`) / domain invalid value / bad JSON / missing header / bad UUID / bad paging; 403 wrong role or own auction; 404 auction or user; 409 optimistic-lock conflict, bid too low, auction not open; 422 safety net for unmapped domain rules.
+- **HATEOAS (HAL):** auction → `self`, `bids`, `place-bid` only while open for bidding; bid → `auction`, `bids`; pages → `self`/`prev`/`next` + `page` metadata.
+- **Tests:** 30 MockMvc integration tests on H2 (happy and error paths for each endpoint, OpenAPI document). The 409 conflict is tested with a mocked use case; the real race is tested in infrastructure.
+- **Smoke check:** jar run against a temporary PostgreSQL 17: Flyway migrated, endpoints answered with `application/hal+json` / `application/problem+json`.
+- **Decisions to review:**
+  - **No authentication:** the caller is identified by the `X-User-Id` header. An unknown user returns 404 (would be 401 with real auth).
+  - Added the two GET endpoints so `self` and `bids` links resolve.
+  - Business-state rejections (bid too low, auction not open) are **409**, alongside the lock conflict; told apart by `type`.
+  - The `POST .../bids` response has no `createdAt` (the command only returns the id); `GET .../bids` has it.
+  - An empty page has no `_embedded` key (HAL default).
+- **Verified:** `mvn clean verify` → BUILD SUCCESS: 108 domain/application, 26 infrastructure, 44 app tests.
+
 **Status:** ⏳ Waiting for your validation
 
 ---
