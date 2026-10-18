@@ -56,7 +56,7 @@ class AuctionReadPersistenceAdapterTest extends PostgresIntegrationTest {
         cancelled.cancel();
         save(cancelled);
         Auction ended = newAuction(seller, NOW.minus(hours(1)), NOW.plus(hours(5)));
-        ended.close();
+        ended.close(CLOCK);
         save(ended);
         Auction softDeleted = save(newAuction(seller, NOW.minus(hours(1)), NOW.plus(hours(5))));
         jdbcTemplate.update("UPDATE auctions SET deleted = TRUE WHERE id = ?", softDeleted.getId().value());
@@ -100,7 +100,7 @@ class AuctionReadPersistenceAdapterTest extends PostgresIntegrationTest {
     @Test
     void findsOneAuctionByIdWhateverItsStatus() {
         Auction ended = newAuction(seller, NOW.minus(hours(1)), NOW.plus(hours(5)));
-        ended.close();
+        ended.close(CLOCK);
         save(ended);
 
         assertThat(auctionReadRepository.findById(ended.getId()))

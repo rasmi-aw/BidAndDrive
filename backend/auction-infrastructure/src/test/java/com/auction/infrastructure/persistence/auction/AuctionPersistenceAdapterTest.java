@@ -96,7 +96,7 @@ class AuctionPersistenceAdapterTest extends PostgresIntegrationTest {
         Auction auction = auctionRepository.save(newRunningAuction(seller));
         Auction loaded = auctionRepository.findById(auction.getId()).orElseThrow();
         loaded.placeBid(buyer, Money.of("1500"), CLOCK);
-        loaded.close();
+        loaded.close(CLOCK);
 
         auctionRepository.save(loaded);
 

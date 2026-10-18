@@ -8,6 +8,7 @@ import com.auction.domain.auction.AuctionId;
 import com.auction.domain.auction.AuctionRepository;
 import com.auction.domain.auction.BidId;
 import com.auction.domain.auction.BidRepository;
+import com.auction.domain.shared.DomainEventPublisher;
 import com.auction.domain.shared.Money;
 import com.auction.domain.user.User;
 import com.auction.domain.user.UserRepository;
@@ -48,6 +49,8 @@ class ConcurrentBiddingTest extends PostgresIntegrationTest {
     @Autowired
     private BidRepository bidRepository;
     @Autowired
+    private DomainEventPublisher eventPublisher;
+    @Autowired
     private TransactionTemplate transactionTemplate;
 
     private final ExecutorService executor = Executors.newFixedThreadPool(2);
@@ -67,7 +70,8 @@ class ConcurrentBiddingTest extends PostgresIntegrationTest {
         // both transactions must have read version 0 before either one writes
         CyclicBarrier bothLoaded = new CyclicBarrier(2);
         PlaceBidUseCase placeBid = new PlaceBidUseCase(
-                new WaitForEachOtherAfterLoading(auctionRepository, bothLoaded), userRepository, bidRepository, CLOCK);
+                new WaitForEachOtherAfterLoading(auctionRepository, bothLoaded), userRepository, bidRepository,
+                eventPublisher, CLOCK);
 
         Future<BidId> aliceBid = executor.submit(() -> inTransaction(placeBid, auctionId, alice, "1200"));
         Future<BidId> bobBid = executor.submit(() -> inTransaction(placeBid, auctionId, bob, "1300"));

@@ -30,7 +30,7 @@ class AuctionClosingTest {
         auction.placeBid(buyer, Money.of("1500"), CLOCK);
         auction.placeBid(topBidder, Money.of("1800"), CLOCK);
 
-        auction.close();
+        auction.close(CLOCK);
 
         assertThat(auction.getStatus()).isEqualTo(AuctionStatus.ENDED);
         assertThat(auction.getWonByUserId()).contains(topBidder.getId());
@@ -38,7 +38,7 @@ class AuctionClosingTest {
 
     @Test
     void closingWithoutBidsEndsTheAuctionWithNoWinner() {
-        auction.close();
+        auction.close(CLOCK);
 
         assertThat(auction.getStatus()).isEqualTo(AuctionStatus.ENDED);
         assertThat(auction.getWonByUserId()).isEmpty();
@@ -46,9 +46,9 @@ class AuctionClosingTest {
 
     @Test
     void cannotCloseAnAuctionTwice() {
-        auction.close();
+        auction.close(CLOCK);
 
-        assertThatThrownBy(auction::close).isInstanceOf(AuctionNotRunningException.class);
+        assertThatThrownBy(() -> auction.close(CLOCK)).isInstanceOf(AuctionNotRunningException.class);
     }
 
     @Test
@@ -66,16 +66,16 @@ class AuctionClosingTest {
         Auction cancelled = runningAuction(seller());
         cancelled.cancel();
 
-        assertThatThrownBy(cancelled::close).isInstanceOf(AuctionNotRunningException.class);
+        assertThatThrownBy(() -> cancelled.close(CLOCK)).isInstanceOf(AuctionNotRunningException.class);
         assertThatThrownBy(cancelled::cancel).isInstanceOf(AuctionNotRunningException.class);
 
-        auction.close();
+        auction.close(CLOCK);
         assertThatThrownBy(auction::cancel).isInstanceOf(AuctionNotRunningException.class);
     }
 
     @Test
     void cannotBidOnAnEndedAuction() {
-        auction.close();
+        auction.close(CLOCK);
 
         assertThatThrownBy(() -> auction.placeBid(buyer, Money.of("2000"), CLOCK))
                 .isInstanceOf(AuctionNotOpenForBiddingException.class)

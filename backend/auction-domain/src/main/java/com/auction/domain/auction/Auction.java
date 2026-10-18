@@ -1,5 +1,6 @@
 package com.auction.domain.auction;
 
+import com.auction.domain.shared.DomainEvent;
 import com.auction.domain.shared.DomainValidationException;
 import com.auction.domain.shared.Guard;
 import com.auction.domain.shared.Money;
@@ -11,6 +12,8 @@ import lombok.Getter;
 
 import java.time.Clock;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Optional;
 
 /**
@@ -36,6 +39,9 @@ public final class Auction {
     private UserId wonByUserId;
     /** Optimistic-locking version, maintained by the persistence adapter. */
     private final long version;
+    /** Raised by business methods, handed out once by {@link #pullEvents()}; never persisted. */
+    @Getter(AccessLevel.NONE)
+    private final List<DomainEvent> events = new ArrayList<>();
 
     private Auction(AuctionId id, UserId sellerId, CarDetails car, Money startPrice, Money currentHighestBid,
                     UserId highestBidderId, Instant startDate, Instant endDate, AuctionStatus status,
@@ -107,16 +113,29 @@ public final class Auction {
 
         currentHighestBid = amount;
         highestBidderId = bidder.getId();
-        return new Bid(BidId.newId(), id, bidder.getId(), amount, now);
+        Bid bid = new Bid(BidId.newId(), id, bidder.getId(), amount, now);
+        events.add(new BidPlaced(id, bid.id(), bidder.getId(), amount, now));
+        return bid;
     }
 
     /**
      * Ends the auction and awards it to the highest bidder, if any.
      */
-    public void close() {
+    public void close(Clock clock) {
+        Instant now = Guard.notNull(clock, "clock").instant();
         ensureRunning();
         status = AuctionStatus.ENDED;
         wonByUserId = highestBidderId;
+        events.add(new AuctionClosed(id, wonByUserId, currentHighestBid, now));
+    }
+
+    /**
+     * Returns the events raised since the last call and forgets them, so each is published once.
+     */
+    public List<DomainEvent> pullEvents() {
+        List<DomainEvent> pulled = List.copyOf(events);
+        events.clear();
+        return pulled;
     }
 
     public void cancel() {

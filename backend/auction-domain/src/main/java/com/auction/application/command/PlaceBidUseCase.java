@@ -6,6 +6,7 @@ import com.auction.domain.auction.AuctionRepository;
 import com.auction.domain.auction.Bid;
 import com.auction.domain.auction.BidId;
 import com.auction.domain.auction.BidRepository;
+import com.auction.domain.shared.DomainEventPublisher;
 import com.auction.domain.shared.Guard;
 import com.auction.domain.user.User;
 import com.auction.domain.user.UserNotFoundException;
@@ -16,7 +17,7 @@ import java.time.Clock;
 
 /**
  * Places a bid on an auction. The auction is saved before the bid so a concurrent update fails on its version
- * before anything else is written.
+ * before anything else is written; {@code BidPlaced} is handed to the publisher last (delivered after commit).
  */
 @RequiredArgsConstructor
 public class PlaceBidUseCase {
@@ -24,6 +25,7 @@ public class PlaceBidUseCase {
     private final AuctionRepository auctionRepository;
     private final UserRepository userRepository;
     private final BidRepository bidRepository;
+    private final DomainEventPublisher eventPublisher;
     private final Clock clock;
 
     public BidId handle(PlaceBidCommand command) {
@@ -36,6 +38,8 @@ public class PlaceBidUseCase {
         Bid bid = auction.placeBid(bidder, command.amount(), clock);
 
         auctionRepository.save(auction);
-        return bidRepository.save(bid).id();
+        BidId bidId = bidRepository.save(bid).id();
+        auction.pullEvents().forEach(eventPublisher::publish);
+        return bidId;
     }
 }

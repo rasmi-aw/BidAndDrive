@@ -36,7 +36,7 @@ class AuctionMapperTest {
     @Test
     void copiesEveryDomainFieldIntoTheEntity() {
         auction.placeBid(buyer, Money.of("1500"), CLOCK);
-        auction.close();
+        auction.close(CLOCK);
         AuctionEntity entity = new AuctionEntity(auction.getId().value());
 
         AuctionMapper.copyToEntity(auction, entity);
@@ -65,7 +65,8 @@ class AuctionMapperTest {
 
         Auction restored = AuctionMapper.toDomain(entity);
 
-        assertThat(restored).usingRecursiveComparison().ignoringFields("version").isEqualTo(auction);
+        // domain events are transient, they are never stored
+        assertThat(restored).usingRecursiveComparison().ignoringFields("version", "events").isEqualTo(auction);
         assertThat(restored.getVersion()).isEqualTo(4);
     }
 

@@ -11,6 +11,7 @@ import com.auction.domain.auction.AuctionReadRepository;
 import com.auction.domain.auction.AuctionRepository;
 import com.auction.domain.auction.BidReadRepository;
 import com.auction.domain.auction.BidRepository;
+import com.auction.domain.shared.DomainEventPublisher;
 import com.auction.domain.user.UserRepository;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -40,13 +41,14 @@ class UseCaseConfig {
 
     @Bean
     PlaceBidUseCase placeBidUseCase(AuctionRepository auctions, UserRepository users, BidRepository bids,
-                                    Clock clock, PlatformTransactionManager tx) {
-        return readWrite(new PlaceBidUseCase(auctions, users, bids, clock), tx);
+                                    DomainEventPublisher events, Clock clock, PlatformTransactionManager tx) {
+        return readWrite(new PlaceBidUseCase(auctions, users, bids, events, clock), tx);
     }
 
     @Bean
-    CloseAuctionUseCase closeAuctionUseCase(AuctionRepository auctions, PlatformTransactionManager tx) {
-        return readWrite(new CloseAuctionUseCase(auctions), tx);
+    CloseAuctionUseCase closeAuctionUseCase(AuctionRepository auctions, DomainEventPublisher events, Clock clock,
+                                            PlatformTransactionManager tx) {
+        return readWrite(new CloseAuctionUseCase(auctions, events, clock), tx);
     }
 
     @Bean

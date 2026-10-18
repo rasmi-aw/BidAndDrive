@@ -7,7 +7,9 @@ import com.auction.domain.auction.AuctionRepository;
 import com.auction.domain.auction.Bid;
 import com.auction.domain.auction.BidId;
 import com.auction.domain.auction.BidRepository;
+import com.auction.domain.auction.BidPlaced;
 import com.auction.domain.auction.BidTooLowException;
+import com.auction.domain.shared.DomainEventPublisher;
 import com.auction.domain.shared.DomainValidationException;
 import com.auction.domain.shared.Money;
 import com.auction.domain.user.User;
@@ -48,6 +50,8 @@ class PlaceBidUseCaseTest {
     private UserRepository userRepository;
     @Mock
     private BidRepository bidRepository;
+    @Mock
+    private DomainEventPublisher eventPublisher;
 
     private PlaceBidUseCase useCase;
 
@@ -56,7 +60,7 @@ class PlaceBidUseCaseTest {
 
     @BeforeEach
     void setUp() {
-        useCase = new PlaceBidUseCase(auctionRepository, userRepository, bidRepository, clockAt(NOW));
+        useCase = new PlaceBidUseCase(auctionRepository, userRepository, bidRepository, eventPublisher, clockAt(NOW));
     }
 
     @Test
@@ -67,10 +71,13 @@ class PlaceBidUseCaseTest {
 
         BidId bidId = useCase.handle(new PlaceBidCommand(auction.getId(), buyer.getId(), Money.of("1200")));
 
-        InOrder order = inOrder(auctionRepository, bidRepository);
+        InOrder order = inOrder(auctionRepository, bidRepository, eventPublisher);
         order.verify(auctionRepository).save(auction);
         ArgumentCaptor<Bid> savedBid = ArgumentCaptor.forClass(Bid.class);
         order.verify(bidRepository).save(savedBid.capture());
+        order.verify(eventPublisher).publish(new BidPlaced(auction.getId(), savedBid.getValue().id(),
+                buyer.getId(), Money.of("1200"), NOW));
+        assertThat(auction.pullEvents()).as("events are handed over once").isEmpty();
 
         Bid bid = savedBid.getValue();
         assertThat(bidId).isEqualTo(bid.id());
@@ -111,7 +118,7 @@ class PlaceBidUseCaseTest {
         assertThatThrownBy(() -> useCase.handle(new PlaceBidCommand(auction.getId(), buyer.getId(), Money.of("10"))))
                 .isInstanceOf(BidTooLowException.class);
         verify(auctionRepository, never()).save(any());
-        verifyNoInteractions(bidRepository);
+        verifyNoInteractions(bidRepository, eventPublisher);
     }
 
     @Test
