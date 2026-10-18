@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Build and run the whole BidAndDrive stack (PostgreSQL, Keycloak, backend, frontend) with Docker compose.
+# Build and run the whole BidAndDrive stack (PostgreSQL, Keycloak, Kafka, backend, frontend) with Docker compose.
 #
 #   ./run.sh            build the images, start everything, wait until it answers, print the URLs
 #   ./run.sh --test     same, but run the backend and frontend test suites first (needs Java 25, Maven, Node)
@@ -8,7 +8,7 @@
 #   ./run.sh stop       stop and remove the containers, keep the database
 #   ./run.sh clean      stop and remove the containers AND the data
 #
-# Ports can be changed with POSTGRES_PORT, KEYCLOAK_PORT and BACKEND_PORT (the frontend must stay on 5173).
+# Ports can be changed with POSTGRES_PORT, KEYCLOAK_PORT, KAFKA_PORT and BACKEND_PORT (the frontend must stay on 5173).
 set -euo pipefail
 
 cd "$(dirname "$0")"
@@ -16,6 +16,7 @@ cd "$(dirname "$0")"
 POSTGRES_PORT="${POSTGRES_PORT:-5433}"
 KEYCLOAK_PORT="${KEYCLOAK_PORT:-8180}"
 BACKEND_PORT="${BACKEND_PORT:-8080}"
+KAFKA_PORT="${KAFKA_PORT:-9094}"
 FRONTEND_PORT=5173
 WAIT_SECONDS="${WAIT_SECONDS:-180}"
 
@@ -54,14 +55,14 @@ check_ports() {
   fi
   local busy=()
   local name port
-  for name in "PostgreSQL:$POSTGRES_PORT" "Keycloak:$KEYCLOAK_PORT" "Backend:$BACKEND_PORT" "Frontend:$FRONTEND_PORT"; do
+  for name in "PostgreSQL:$POSTGRES_PORT" "Keycloak:$KEYCLOAK_PORT" "Kafka:$KAFKA_PORT" "Backend:$BACKEND_PORT" "Frontend:$FRONTEND_PORT"; do
     port="${name#*:}"
     if port_in_use "$port"; then
       busy+=("${name%%:*} port $port")
     fi
   done
   if ((${#busy[@]})); then
-    fail "Port(s) already in use: ${busy[*]}. Stop what uses them, or set POSTGRES_PORT / KEYCLOAK_PORT / BACKEND_PORT."
+    fail "Port(s) already in use: ${busy[*]}. Stop what uses them, or set POSTGRES_PORT / KEYCLOAK_PORT / KAFKA_PORT / BACKEND_PORT."
   fi
 }
 
@@ -105,7 +106,7 @@ start() {
 
   info "Building the images (the first build downloads dependencies and takes a few minutes)"
   compose build
-  info "Starting PostgreSQL, Keycloak, backend and frontend"
+  info "Starting PostgreSQL, Keycloak, Kafka, backend and frontend"
   compose up -d
 
   wait_for "Keycloak" "http://localhost:$KEYCLOAK_PORT/realms/bidanddrive/.well-known/openid-configuration" keycloak
@@ -120,6 +121,7 @@ ${GREEN}${BOLD}BidAndDrive is running.${RESET}
   API (Swagger)    http://localhost:$BACKEND_PORT/swagger-ui/index.html
   Keycloak admin   http://localhost:$KEYCLOAK_PORT        admin/admin
   PostgreSQL       localhost:$POSTGRES_PORT  db auction   auction/auction
+  Kafka            localhost:$KAFKA_PORT             topics auction.bids, auction.closed
 
   ./run.sh logs    follow the logs
   ./run.sh stop    stop (keeps data)      ./run.sh clean    stop and delete data
