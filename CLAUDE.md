@@ -7,7 +7,7 @@ Project context and working rules for Claude Code in `auction_mvp`.
 ```
 auction_mvp/
 ├── backend/                  # Java 25, Spring Boot 3.5, Maven multi-module
-│   ├── auction-domain/       # pure Java domain model + ports
+│   ├── auction-domain/       # pure Java: domain model + ports, and application use cases
 │   ├── auction-infrastructure/  # adapters implementing the domain ports
 │   └── auction-app/          # Spring Boot app: controllers + configuration
 ├── frontend/                 # Vue 3 + TypeScript + Vite
@@ -25,6 +25,9 @@ auction_mvp/
 ### CQRS (light)
 - Commands and queries are **separate use cases**: a command use case changes state and returns nothing (or just an id); a query use case reads state and never mutates it.
 - Keep command and query ports/classes in separate packages; don't mix reads and writes in one use case.
+- Use cases live in `auction-domain` under `com.auction.application.command` / `com.auction.application.query` (plain classes, no Spring annotations; `auction-app` wires them as beans). Each takes a command/query record and has a single `handle(...)` method.
+- Write ports (`AuctionRepository`, `BidRepository`, `UserRepository`) and the read port (`AuctionReadRepository` → `AuctionSummary`) live in the domain packages. Paging uses the domain `PageQuery` / `Page`, not Spring's.
+- Use cases get time from an injected `Clock`.
 
 ### Persistence rules
 - **Soft delete only — never hard delete.** Mark records as deleted (e.g. `deletedAt` / `deleted` flag) and exclude them from queries by default. No `DELETE` statements, no `repository.delete(...)`.
@@ -48,7 +51,7 @@ Domain logic gets plain unit tests (no Spring context).
 
 ## Commands
 
-Base package: `com.auction` (`com.auction.domain`, `com.auction.infrastructure`, `com.auction.app`).
+Base package: `com.auction` (`com.auction.domain`, `com.auction.application`, `com.auction.infrastructure`, `com.auction.app`).
 
 ```bash
 cd backend
@@ -59,5 +62,5 @@ java -jar auction-app/target/auction-app-0.0.1-SNAPSHOT.jar   # run the app afte
 - Library versions live in `backend/pom.xml` only; child POMs declare dependencies without versions.
 - `auction-domain` has a `maven-enforcer` rule that fails the build on any Spring / JPA / Hibernate dependency.
 - The context test uses H2 through the `test` profile (`auction-app/src/test/resources/application-test.yml`).
-- Architecture rules are enforced by `auction-app/src/test/java/com/auction/app/architecture/ArchitectureTest.java` (ArchUnit): domain depends only on the JDK and itself, infrastructure never depends on app, controllers never touch repositories (Spring Data, `@Repository`, or `*Repository` ports) and go through use cases instead.
+- Architecture rules are enforced by `auction-app/src/test/java/com/auction/app/architecture/ArchitectureTest.java` (ArchUnit): domain depends only on the JDK and itself, application only on domain + JDK, command and query use cases don't depend on each other, infrastructure never depends on app, controllers never touch repositories (Spring Data, `@Repository`, or `*Repository` ports) and go through use cases instead.
 - To build or test a single module, add `-am` so sibling modules are built too, e.g. `mvn -pl auction-app -am test -Dtest=ArchitectureTest -Dsurefire.failIfNoSpecifiedTests=false`.

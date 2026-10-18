@@ -143,6 +143,41 @@ Built in 5 TDD steps. Each step: tests written first and seen failing, then impl
 - `CLAUDE.md`: noted the architecture rules and how to build a single module (`-am`).
 - **Verified:** `mvn clean verify` → BUILD SUCCESS (68 domain + 5 app tests).
 
+**Status:** ✅ Validated
+
+---
+
+## Prompt 6 — Application layer (CQRS use cases)
+
+**Date:** 2026-10-18
+
+### Prompt
+
+> add the application layer: commands CreateAuction, PlaceBid, CloseAuction and query ListRunningAuctions (paged).
+> define repository ports in domain. unit test use cases with mockito.
+
+### Response
+
+**Where:** use cases live in `auction-domain` under `com.auction.application.command` / `.query`. They can't use Spring, and this is the only pure-Java module. `auction-app` will wire them as beans once adapters exist.
+
+| Commit | Content |
+|---|---|
+| `5f3f6dd` | Ports in domain: `AuctionRepository` (save, findById), `BidRepository` (save), `UserRepository` (findById), read port `AuctionReadRepository.findRunning(now, PageQuery)` → `Page<AuctionSummary>`; `PageQuery` (0-based, size 1..100), `Page`; `AuctionNotFoundException`, `UserNotFoundException` |
+| `d72b0ca` | `CreateAuctionUseCase.handle(CreateAuctionCommand)` → `AuctionId` |
+| `806a0f3` | `PlaceBidUseCase.handle(PlaceBidCommand)` → `BidId`; saves the auction, then the bid |
+| `b9b7953` | `CloseAuctionUseCase.handle(CloseAuctionCommand)` |
+| `c7394bc` | `ListRunningAuctionsUseCase.handle(ListRunningAuctionsQuery)` → `Page<AuctionSummary>` |
+| `c019f70` | ArchUnit: application depends only on domain + JDK; commands and queries don't depend on each other |
+
+- **Tests:** Mockito (`@ExtendWith(MockitoExtension.class)`, strict stubs). Each use case has a happy path, not-found paths, a domain rejection (verifies nothing is saved), and command/query argument checks.
+- **Decisions to review:**
+  - Commands return only an id (or nothing); the query uses a separate read port and read model.
+  - `ListRunningAuctions` means status RUNNING **and** `now` inside `[startDate, endDate)`, ordered by `endDate` ascending (stated in the port's contract; the adapter must implement it).
+  - `PlaceBid` saves the auction before the bid, so a version conflict fails before the bid is written.
+  - **Not done yet:** transactions and Spring wiring (no adapters yet, so beans can't be created); mapping optimistic-lock failures to a domain error.
+- New ArchUnit rules checked against throwaway violating classes: all 3 failed as expected; the classes were then removed.
+- **Verified:** `mvn clean verify` → BUILD SUCCESS: 92 tests in the domain module (model + use cases) and 8 in the app module (context test + 7 architecture rules).
+
 **Status:** ⏳ Waiting for your validation
 
 ---
