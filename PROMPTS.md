@@ -393,6 +393,28 @@ Built in 5 TDD steps. Each step: tests written first and seen failing, then impl
 - **Added (`ceffedf`):** `SchemaMigrationTest` (PostgreSQL) asserting V1 applied with nothing pending, `ddl-auto` = `validate`, the `version`/`deleted` columns and both index definitions. Checked that it fails when the test profile is switched to `create-drop` (then restored).
 - **Verified:** `mvn verify` → BUILD SUCCESS: 116 domain/application, 30 infrastructure, 55 app tests.
 
+**Status:** ✅ Validated
+
+---
+
+## Prompt 13 — README
+
+**Date:** 2026-10-18
+
+### Prompt
+
+> update README.md: how to run (compose + local), architecture choices (hexagonal, cqrs, optimistic locking why), acceptance criteria per user story, what i skipped and why, how i used the agent (CLAUDE.md, step by step).
+
+### Response
+
+- Created `README.md` at the root (there was none) — commit `4547881`:
+  - **How to run:** full stack with `docker compose up -d --build` (URLs, ports, test users), local mode (infra in compose, backend jar, Vite), getting a token, env settings, test commands, CI.
+  - **Architecture:** module diagram; hexagonal + DDD (pure-Java domain enforced by Maven Enforcer + ArchUnit, ports/adapters, separate JPA entities, injected Clock); CQRS light (separate ports, read-only query transactions, why "light"); **optimistic locking**: the lost-update problem, why optimistic instead of pessimistic, the two-level check in the adapter, the concurrency test and the bug it found; other choices (soft delete, Flyway, HAL, ProblemDetail, Keycloak, frontend).
+  - **7 user stories** with acceptance criteria, each pointing to the tests that cover it (every referenced test class/method checked to exist).
+  - **What was skipped and why** — most important: **nothing closes auctions automatically yet** (the use case exists, no scheduler or endpoint).
+  - **How the agent was used:** CLAUDE.md harness, one prompt per step, tests first, small commits, machine-checked rules, real-stack verification, review + validation per step, and what this process caught.
+- No code changed.
+
 **Status:** ⏳ Waiting for your validation
 
 ---
