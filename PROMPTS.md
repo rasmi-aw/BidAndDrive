@@ -118,6 +118,31 @@ Built in 5 TDD steps. Each step: tests written first and seen failing, then impl
   - No `restore(...)` factories yet for loading from the DB; to be added with the persistence adapter.
 - **Verified:** `mvn verify` → BUILD SUCCESS, 68 domain tests + 1 app context test. The domain module's only non-test dependency is Lombok (`provided`).
 
+**Status:** ✅ Validated
+
+---
+
+## Prompt 5 — ArchUnit boundary tests
+
+**Date:** 2026-10-18
+
+### Prompt
+
+> add archunit tests in auction-app to enforce: domain depends on nothing (no spring, no jakarta.persistence), infra doesnt depend on app, controllers dont touch repositories directly. make them pass.
+
+### Response
+
+- Added `auction-app/src/test/java/com/auction/app/architecture/ArchitectureTest.java` (commit `79eda0f`). It scans all production classes under `com.auction` and has 4 rules:
+  1. `domain_does_not_depend_on_spring_or_jpa`: no `org.springframework..`, `jakarta.persistence..` or `org.hibernate..`.
+  2. `domain_depends_only_on_the_jdk_and_itself`: only `java..` and `com.auction.domain..`, plus the root `lombok` package.
+  3. `infrastructure_does_not_depend_on_app`.
+  4. `controllers_do_not_use_repositories`: `@RestController` / `@Controller` classes must not depend on Spring Data `Repository` types, `@Repository` beans, or anything named `*Repository` (which covers domain repository ports).
+- **Finding:** rule 2 first failed 19 times. Lombok puts `@lombok.Generated` on the getters and `equals`/`hashCode` it generates in `User` and `Auction`. The annotation is compile-time only and Lombok stays `provided`, so the root `lombok` package is allowed and the reason is written as a comment in the test.
+- Rules 3 and 4 use `allowEmptyShould(true)` because there are no infrastructure classes or controllers yet.
+- **Proved the rules work:** temporary classes that broke every rule made all 4 tests fail with the right violations; then they were deleted.
+- `CLAUDE.md`: noted the architecture rules and how to build a single module (`-am`).
+- **Verified:** `mvn clean verify` → BUILD SUCCESS (68 domain + 5 app tests).
+
 **Status:** ⏳ Waiting for your validation
 
 ---

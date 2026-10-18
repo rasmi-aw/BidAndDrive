@@ -59,3 +59,5 @@ java -jar auction-app/target/auction-app-0.0.1-SNAPSHOT.jar   # run the app afte
 - Library versions live in `backend/pom.xml` only; child POMs declare dependencies without versions.
 - `auction-domain` has a `maven-enforcer` rule that fails the build on any Spring / JPA / Hibernate dependency.
 - The context test uses H2 through the `test` profile (`auction-app/src/test/resources/application-test.yml`).
+- Architecture rules are enforced by `auction-app/src/test/java/com/auction/app/architecture/ArchitectureTest.java` (ArchUnit): domain depends only on the JDK and itself, infrastructure never depends on app, controllers never touch repositories (Spring Data, `@Repository`, or `*Repository` ports) and go through use cases instead.
+- To build or test a single module, add `-am` so sibling modules are built too, e.g. `mvn -pl auction-app -am test -Dtest=ArchitectureTest -Dsurefire.failIfNoSpecifiedTests=false`.
