@@ -74,6 +74,31 @@ describe('auction store', () => {
     expect(store.minimumBid).toBe(1500)
   })
 
+  it('applies a live bid: new highest bid, newest first in the history', () => {
+    const store = useAuctionStore()
+    store.show(auction({ currentHighestBid: 1200 }))
+
+    store.applyBid({ auctionId: 'a1', bidId: 'b9', bidderId: 'u2', amount: 1300, occurredAt: '2026-10-18T10:00:00Z' })
+
+    expect(store.current?.currentHighestBid).toBe(1300)
+    expect(store.bids[0]).toMatchObject({ id: 'b9', amount: 1300, createdAt: '2026-10-18T10:00:00Z' })
+    expect(store.minimumBid).toBe(1300)
+  })
+
+  it('ignores live bids it already has, of other auctions, or below the highest bid', () => {
+    const store = useAuctionStore()
+    store.show(auction({ currentHighestBid: 1500 }))
+    const bid = { auctionId: 'a1', bidId: 'b9', bidderId: 'u2', amount: 1600, occurredAt: '2026-10-18T10:00:00Z' }
+
+    store.applyBid(bid)
+    store.applyBid(bid)
+    store.applyBid({ ...bid, auctionId: 'other', bidId: 'b10', amount: 9999 })
+    store.applyBid({ ...bid, bidId: 'b11', amount: 1400 })
+
+    expect(store.bids.map((b) => b.id)).toEqual(['b9'])
+    expect(store.current?.currentHighestBid).toBe(1600)
+  })
+
   it('keeps the backend problem when loading fails', async () => {
     fetchMock.mockResolvedValueOnce(problemResponse({
       type: 'urn:bidanddrive:problem:not-found', title: 'Resource not found', status: 404, detail: 'auction x not found',

@@ -1,7 +1,10 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { onUnmounted, ref, watch } from 'vue'
 import { auctionUrl } from '@/api/endpoints'
+import { linkTo } from '@/api/hal'
+import { Rel } from '@/api/types'
 import ProblemAlert from '@/components/ProblemAlert.vue'
+import { useAuctionStream } from '@/composables/useAuctionStream'
 import { usePlaceBid } from '@/composables/usePlaceBid'
 import { useAuctionStore } from '@/stores/auction'
 import { useAuthStore } from '@/stores/auth'
@@ -12,6 +15,7 @@ const props = defineProps<{ id: string }>()
 const store = useAuctionStore()
 const auth = useAuthStore()
 const { placeBid, submitting, error: bidError } = usePlaceBid()
+const liveStream = useAuctionStream()
 
 const amount = ref<number | null>(null)
 const accepted = ref(false)
@@ -29,6 +33,31 @@ watch(
     }
   },
   { immediate: true },
+)
+
+// live updates while the auction offers a stream link (running auctions only)
+watch(
+  () => linkTo(store.current, Rel.STREAM),
+  (href, previous) => {
+    if (href !== previous) {
+      if (href) liveStream.start()
+      else liveStream.stop()
+    }
+  },
+  { immediate: true },
+)
+onUnmounted(() => liveStream.stop())
+
+// briefly highlight the highest bid when it changes
+const flash = ref(false)
+watch(
+  () => store.current?.currentHighestBid,
+  (amount, previous) => {
+    if (previous !== undefined && amount !== previous) {
+      flash.value = true
+      setTimeout(() => (flash.value = false), 1200)
+    }
+  },
 )
 
 async function submitBid(): Promise<void> {
@@ -49,6 +78,7 @@ async function submitBid(): Promise<void> {
     <header>
       <h1>{{ store.current.carName }}</h1>
       <span class="badge" :class="store.current.status.toLowerCase()">{{ store.current.status }}</span>
+      <span v-if="liveStream.connected.value" class="live" title="New bids appear as they are placed">● Live</span>
     </header>
     <p class="muted">
       {{ store.current.condition.toLowerCase() }} condition · made {{ store.current.yearMade }} · registered
@@ -60,7 +90,9 @@ async function submitBid(): Promise<void> {
       <dt>Start price</dt>
       <dd>{{ formatMoney(store.current.startPrice) }}</dd>
       <dt>Highest bid</dt>
-      <dd>{{ store.current.currentHighestBid !== undefined ? formatMoney(store.current.currentHighestBid) : 'No bid yet' }}</dd>
+      <dd :class="{ flash }">
+        {{ store.current.currentHighestBid !== undefined ? formatMoney(store.current.currentHighestBid) : 'No bid yet' }}
+      </dd>
       <dt>Starts</dt>
       <dd>{{ formatDateTime(store.current.startDate) }}</dd>
       <dt>Ends</dt>

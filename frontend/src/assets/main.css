@@ -57,6 +57,9 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
 .detail dd { margin: 0; }
 .detail section { margin-top: 24px; }
 .bid form { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px; }
+.live { font-size: 0.8rem; font-weight: 600; color: var(--success); }
+.flash { animation: flash 1.2s ease-out; }
+@keyframes flash { from { background: #fff3b0; } to { background: transparent; } }
 table { border-collapse: collapse; width: 100%; }
 th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--border); }
 

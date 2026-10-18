@@ -44,14 +44,20 @@ export interface RequestOptions {
   body?: unknown
 }
 
-export async function apiFetch<T>(url: string, options: RequestOptions = {}): Promise<T> {
-  const headers = new Headers({ Accept: 'application/hal+json, application/problem+json' })
-  if (options.body !== undefined) {
-    headers.set('Content-Type', 'application/json')
-  }
+/** Accept header plus the bearer token when logged in. */
+export async function requestHeaders(accept: string): Promise<Headers> {
+  const headers = new Headers({ Accept: accept })
   const token = await tokenProvider()
   if (token) {
     headers.set('Authorization', `Bearer ${token}`)
+  }
+  return headers
+}
+
+export async function apiFetch<T>(url: string, options: RequestOptions = {}): Promise<T> {
+  const headers = await requestHeaders('application/hal+json, application/problem+json')
+  if (options.body !== undefined) {
+    headers.set('Content-Type', 'application/json')
   }
 
   let response: Response
@@ -69,9 +75,13 @@ export async function apiFetch<T>(url: string, options: RequestOptions = {}): Pr
   }
 
   if (!response.ok) {
-    throw new ApiError(response.status, await readProblem(response))
+    throw await errorFrom(response)
   }
   return (await response.json()) as T
+}
+
+export async function errorFrom(response: Response): Promise<ApiError> {
+  return new ApiError(response.status, await readProblem(response))
 }
 
 async function readProblem(response: Response): Promise<ProblemDetail> {

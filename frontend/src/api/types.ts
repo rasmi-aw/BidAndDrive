@@ -17,6 +17,7 @@ export const Rel = {
   BIDS: 'bids',
   PLACE_BID: 'place-bid',
   AUCTION: 'auction',
+  STREAM: 'stream',
 } as const
 
 export type AuctionStatus = 'RUNNING' | 'CANCELLED' | 'ENDED'
@@ -82,4 +83,21 @@ export interface NewAuction {
   startPrice: number
   startDate: string
   endDate: string
+}
+
+/** SSE `bid` event of GET /api/auctions/{id}/stream */
+export interface BidEvent {
+  auctionId: string
+  bidId: string
+  bidderId: string
+  amount: number
+  occurredAt: string
+}
+
+/** SSE `closed` event; no winner when nobody bid */
+export interface ClosedEvent {
+  auctionId: string
+  winnerId?: string
+  winningBid?: number
+  occurredAt: string
 }

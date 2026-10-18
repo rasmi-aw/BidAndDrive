@@ -2,7 +2,7 @@ import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import { embedded, linkTo } from '@/api/hal'
 import { type ApiError, apiFetch, toApiError } from '@/api/http'
-import { type Auction, type Bid, type PagedResource, Rel } from '@/api/types'
+import { type Auction, type Bid, type BidEvent, type PagedResource, Rel } from '@/api/types'
 
 /** The auction being looked at, shared by the detail page and the bid form. */
 export const useAuctionStore = defineStore('auction', () => {
@@ -53,11 +53,29 @@ export const useAuctionStore = defineStore('auction', () => {
     bids.value = href ? embedded(await apiFetch<PagedResource<Bid>>(href), 'bids') : []
   }
 
+  /**
+   * A bid pushed by the live stream: becomes the highest bid and the newest entry of the history.
+   * Bids of an auction only go up (and arrive in order), so anything not above the highest bid is stale.
+   */
+  function applyBid(event: BidEvent): void {
+    const auction = current.value
+    if (!auction || auction.id !== event.auctionId || bids.value.some((b) => b.id === event.bidId)
+      || event.amount <= (auction.currentHighestBid ?? 0)) {
+      return
+    }
+    auction.currentHighestBid = event.amount
+    bids.value = [
+      { id: event.bidId, auctionId: event.auctionId, bidderId: event.bidderId, amount: event.amount,
+        createdAt: event.occurredAt, _links: {} },
+      ...bids.value,
+    ]
+  }
+
   function clear(): void {
     current.value = null
     bids.value = []
     error.value = null
   }
 
-  return { current, bids, loading, error, canBid, minimumBid, show, load, refresh, clear }
+  return { current, bids, loading, error, canBid, minimumBid, show, load, refresh, applyBid, clear }
 })
