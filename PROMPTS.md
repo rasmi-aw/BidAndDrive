@@ -365,6 +365,34 @@ Built in 5 TDD steps. Each step: tests written first and seen failing, then impl
   - The frontend is published on host port **5173** because the Keycloak client only accepts redirects there; it conflicts with `npm run dev` if both run.
   - **Not done:** pushing images to a registry, and running the workflow on GitHub (nothing pushed).
 
+**Status:** ✅ Validated
+
+---
+
+## Prompt 12 — Flyway migrations (check)
+
+**Date:** 2026-10-18
+
+### Prompt
+
+> add flyway in auction-infrastructure. V1 migration for users, auctions (with version column + deleted flag), bids, indexes on auction status/end_date and bids auction_id.
+> set ddl-auto=validate. tests must run the migrations too.
+
+### Response
+
+**Already in place since Prompt 7 (commit `c1b8840`), so nothing was rebuilt** (an applied migration must not be rewritten):
+
+| Requirement | Where |
+|---|---|
+| Flyway in `auction-infrastructure` | `flyway-core` + `flyway-database-postgresql` in its `pom.xml` |
+| V1: `users`, `auctions` (`version BIGINT`, `deleted BOOLEAN`), `bids` | `db/migration/V1__create_schema.sql` (every table has `deleted`) |
+| Indexes | `ix_auctions_status_end_date (status, end_date)`, `ix_bids_auction_id (auction_id)` |
+| `ddl-auto=validate` | `auction-app/src/main/resources/application.yml`, infra test `application.yml`; nothing uses `create`/`update`/`create-drop` |
+| Tests run the migrations | infra tests: Flyway migrates the Testcontainers PostgreSQL; app tests: Flyway migrates H2 — confirmed in the logs |
+
+- **Added (`ceffedf`):** `SchemaMigrationTest` (PostgreSQL) asserting V1 applied with nothing pending, `ddl-auto` = `validate`, the `version`/`deleted` columns and both index definitions. Checked that it fails when the test profile is switched to `create-drop` (then restored).
+- **Verified:** `mvn verify` → BUILD SUCCESS: 116 domain/application, 30 infrastructure, 55 app tests.
+
 **Status:** ⏳ Waiting for your validation
 
 ---
