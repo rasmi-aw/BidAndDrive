@@ -3,6 +3,7 @@ package com.auction.app.config;
 import com.auction.application.command.CloseAuctionUseCase;
 import com.auction.application.command.CreateAuctionUseCase;
 import com.auction.application.command.PlaceBidUseCase;
+import com.auction.application.command.ProvisionUserUseCase;
 import com.auction.application.query.GetAuctionUseCase;
 import com.auction.application.query.ListAuctionBidsUseCase;
 import com.auction.application.query.ListRunningAuctionsUseCase;
@@ -35,6 +36,7 @@ class UseCaseConfigTest {
                 Arguments.of(CreateAuctionUseCase.class, false),
                 Arguments.of(PlaceBidUseCase.class, false),
                 Arguments.of(CloseAuctionUseCase.class, false),
+                Arguments.of(ProvisionUserUseCase.class, false),
                 Arguments.of(ListRunningAuctionsUseCase.class, true),
                 Arguments.of(GetAuctionUseCase.class, true),
                 Arguments.of(ListAuctionBidsUseCase.class, true));

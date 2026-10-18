@@ -1,5 +1,6 @@
 package com.auction.app.web;
 
+import com.auction.app.web.security.KeycloakRealmRoleConverter;
 import com.auction.domain.user.Email;
 import com.auction.domain.user.Phone;
 import com.auction.domain.user.Role;
@@ -12,29 +13,37 @@ import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMock
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.security.oauth2.jwt.JwtDecoder;
+import org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.JwtRequestPostProcessor;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
 
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
  * Full application on H2 (Flyway schema). Every request commits for real; tables are cleared before each test.
+ * Requests are authenticated with {@code jwt()} tokens shaped like Keycloak's, mapped by the real role converter.
  */
 @SpringBootTest
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
 public abstract class ApiIntegrationTest {
 
-    protected static final String USER_HEADER = "X-User-Id";
     protected static final MediaType PROBLEM_JSON = MediaType.APPLICATION_PROBLEM_JSON;
+    private static final KeycloakRealmRoleConverter KEYCLOAK_ROLES = new KeycloakRealmRoleConverter();
 
     private static final AtomicInteger SEQUENCE = new AtomicInteger();
 
@@ -46,6 +55,10 @@ public abstract class ApiIntegrationTest {
     protected Clock clock;
     @Autowired
     private JdbcTemplate jdbcTemplate;
+
+    /** Only reached by requests with a raw Authorization header; jwt() bypasses the decoder. */
+    @MockitoBean
+    protected JwtDecoder jwtDecoder;
 
     @BeforeEach
     void cleanDatabase() {
@@ -63,6 +76,26 @@ public abstract class ApiIntegrationTest {
 
     protected User buyer() {
         return user(Role.BUYER);
+    }
+
+    /** Token of an existing user: subject = user id, Keycloak realm role = the user's role, profile claims. */
+    protected static JwtRequestPostProcessor tokenOf(User user) {
+        return token(user.getId().value(), Map.of(
+                "name", user.getFullName(),
+                "email", user.getEmail().value(),
+                "phone_number", user.getPhone().value()), user.getRole().name());
+    }
+
+    /** Token for any authenticated caller who is never provisioned (read-only endpoints). */
+    protected static JwtRequestPostProcessor anyToken() {
+        return token(UUID.randomUUID(), Map.of(), "BUYER");
+    }
+
+    protected static JwtRequestPostProcessor token(UUID subject, Map<String, Object> profileClaims, String... realmRoles) {
+        Map<String, Object> claims = new LinkedHashMap<>(profileClaims);
+        claims.put("realm_access", Map.of("roles", List.of(realmRoles)));
+        return jwt().jwt(jwt -> jwt.subject(subject.toString()).claims(c -> c.putAll(claims)))
+                .authorities(KEYCLOAK_ROLES);
     }
 
     protected Instant now() {
@@ -85,7 +118,7 @@ public abstract class ApiIntegrationTest {
     }
 
     protected ResultActions postAuction(User seller, String json) throws Exception {
-        return mvc.perform(post("/api/auctions").header(USER_HEADER, seller.getId().value())
+        return mvc.perform(post("/api/auctions").with(tokenOf(seller))
                 .contentType(MediaType.APPLICATION_JSON).content(json));
     }
 
@@ -101,7 +134,7 @@ public abstract class ApiIntegrationTest {
     }
 
     protected ResultActions postBid(UUID auctionId, User bidder, String amount) throws Exception {
-        return mvc.perform(post("/api/auctions/{id}/bids", auctionId).header(USER_HEADER, bidder.getId().value())
+        return mvc.perform(post("/api/auctions/{id}/bids", auctionId).with(tokenOf(bidder))
                 .contentType(MediaType.APPLICATION_JSON).content("{\"amount\": " + amount + "}"));
     }
 

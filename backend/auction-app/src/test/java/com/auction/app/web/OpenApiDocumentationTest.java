@@ -2,7 +2,7 @@ package com.auction.app.web;
 
 import org.junit.jupiter.api.Test;
 
-import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.hasKey;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -19,7 +19,21 @@ class OpenApiDocumentationTest extends ApiIntegrationTest {
                 .andExpect(jsonPath("$.paths['/api/auctions/{auctionId}'].get").exists())
                 .andExpect(jsonPath("$.paths['/api/auctions/{auctionId}/bids'].post").exists())
                 .andExpect(jsonPath("$.paths['/api/auctions/{auctionId}/bids'].get").exists())
-                .andExpect(jsonPath("$.paths['/api/auctions'].post.parameters[*].name", hasItem("X-User-Id")));
+                .andExpect(jsonPath("$.paths['/api/auctions'].post.parameters").doesNotExist())
+                .andExpect(jsonPath("$.components.securitySchemes.bearer-jwt.scheme").value("bearer"))
+                .andExpect(jsonPath("$.components.securitySchemes.bearer-jwt.bearerFormat").value("JWT"));
+    }
+
+    @Test
+    void documentsWhichOperationsNeedAToken() throws Exception {
+        mvc.perform(get("/v3/api-docs"))
+                .andExpect(jsonPath("$.paths['/api/auctions'].post.security[0]").value(hasKey("bearer-jwt")))
+                .andExpect(jsonPath("$.paths['/api/auctions/{auctionId}/bids'].post.security[0]").value(hasKey("bearer-jwt")))
+                .andExpect(jsonPath("$.paths['/api/auctions/{auctionId}'].get.security[0]").value(hasKey("bearer-jwt")))
+                .andExpect(jsonPath("$.paths['/api/auctions/running'].get.security").doesNotExist())
+                .andExpect(jsonPath("$.security").doesNotExist())
+                .andExpect(jsonPath("$.paths['/api/auctions'].post.responses['401']").exists())
+                .andExpect(jsonPath("$.paths['/api/auctions/running'].get.responses['401']").doesNotExist());
     }
 
     @Test

@@ -1,5 +1,6 @@
 package com.auction.app.web.error;
 
+import com.auction.app.web.security.IncompleteIdentityException;
 import com.auction.domain.auction.AuctionConcurrentlyModifiedException;
 import com.auction.domain.auction.AuctionNotFoundException;
 import com.auction.domain.auction.AuctionNotOpenForBiddingException;
@@ -61,6 +62,11 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
             SellerCannotBidOnOwnAuctionException.class})
     ProblemDetail forbidden(DomainException ex) {
         return problem(HttpStatus.FORBIDDEN, "forbidden", "Action not allowed for this user", ex.getMessage());
+    }
+
+    @ExceptionHandler(IncompleteIdentityException.class)
+    ProblemDetail incompleteIdentity(IncompleteIdentityException ex) {
+        return problem(HttpStatus.FORBIDDEN, "incomplete-identity", "Incomplete identity", ex.getMessage());
     }
 
     @ExceptionHandler({AuctionNotFoundException.class, UserNotFoundException.class})

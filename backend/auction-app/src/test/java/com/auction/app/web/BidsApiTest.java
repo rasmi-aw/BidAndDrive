@@ -7,6 +7,7 @@ import com.auction.domain.user.User;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 
+import java.util.Map;
 import java.util.UUID;
 
 import static org.hamcrest.Matchers.contains;
@@ -38,7 +39,7 @@ class BidsApiTest extends ApiIntegrationTest {
                 .andExpect(jsonPath("$._links.auction.href", endsWith("/api/auctions/" + auctionId)))
                 .andExpect(jsonPath("$._links.bids.href", endsWith("/api/auctions/" + auctionId + "/bids")));
 
-        mvc.perform(get("/api/auctions/{id}", auctionId))
+        mvc.perform(get("/api/auctions/{id}", auctionId).with(anyToken()))
                 .andExpect(jsonPath("$.currentHighestBid").value(1200.50));
     }
 
@@ -48,7 +49,7 @@ class BidsApiTest extends ApiIntegrationTest {
         postBid(auctionId, buyer(), "1100").andExpect(status().isCreated());
         postBid(auctionId, buyer(), "1200").andExpect(status().isCreated());
 
-        mvc.perform(get("/api/auctions/{id}/bids", auctionId))
+        mvc.perform(get("/api/auctions/{id}/bids", auctionId).with(anyToken()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$._embedded.bids[*].amount", contains(1200.0, 1100.0)))
                 .andExpect(jsonPath("$._embedded.bids[0].createdAt").isNotEmpty())
@@ -58,7 +59,7 @@ class BidsApiTest extends ApiIntegrationTest {
 
     @Test
     void listingBidsOfUnknownAuctionIsNotFound() throws Exception {
-        mvc.perform(get("/api/auctions/{id}/bids", UUID.randomUUID()))
+        mvc.perform(get("/api/auctions/{id}/bids", UUID.randomUUID()).with(anyToken()))
                 .andExpect(status().isNotFound());
     }
 
@@ -75,33 +76,40 @@ class BidsApiTest extends ApiIntegrationTest {
     }
 
     @Test
-    void sellerIsForbiddenToBidOnTheirOwnAuction() throws Exception {
+    void sellerTokenIsForbiddenToBid() throws Exception {
         User seller = seller();
         UUID auctionId = runningAuction(seller);
 
         postBid(auctionId, seller, "2000")
                 .andExpect(status().isForbidden())
-                .andExpect(jsonPath("$.type").value("urn:bidanddrive:problem:forbidden"))
+                .andExpect(content().contentTypeCompatibleWith(PROBLEM_JSON))
+                .andExpect(jsonPath("$.type").value("urn:bidanddrive:problem:forbidden"));
+        postBid(auctionId, seller(), "2000").andExpect(status().isForbidden());
+    }
+
+    @Test
+    void sellerWhoBecameABuyerStillCannotBidOnTheirOwnAuction() throws Exception {
+        User seller = seller();
+        UUID auctionId = runningAuction(seller);
+        UUID sellerId = seller.getId().value();
+
+        mvc.perform(post("/api/auctions/{id}/bids", auctionId)
+                        .with(token(sellerId, profileOf(seller), "BUYER"))
+                        .contentType("application/json").content("{\"amount\": 2000}"))
+                .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.detail", containsString("own auction")));
     }
 
     @Test
-    void anotherSellerIsForbiddenToBid() throws Exception {
-        UUID auctionId = runningAuction(seller());
-
-        postBid(auctionId, seller(), "2000")
-                .andExpect(status().isForbidden())
-                .andExpect(jsonPath("$.detail", containsString("BUYER")));
+    void unknownAuctionIsNotFound() throws Exception {
+        postBid(UUID.randomUUID(), buyer(), "2000")
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.type").value("urn:bidanddrive:problem:not-found"));
     }
 
-    @Test
-    void unknownAuctionOrBidderIsNotFound() throws Exception {
-        postBid(UUID.randomUUID(), buyer(), "2000").andExpect(status().isNotFound());
-
-        UUID auctionId = runningAuction(seller());
-        mvc.perform(post("/api/auctions/{id}/bids", auctionId).header(USER_HEADER, UUID.randomUUID())
-                        .contentType("application/json").content("{\"amount\": 2000}"))
-                .andExpect(status().isNotFound());
+    private static Map<String, Object> profileOf(User user) {
+        return Map.of("name", user.getFullName(), "email", user.getEmail().value(),
+                "phone_number", user.getPhone().value());
     }
 
     @Test

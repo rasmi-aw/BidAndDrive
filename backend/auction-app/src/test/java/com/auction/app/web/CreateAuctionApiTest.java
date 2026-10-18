@@ -4,13 +4,11 @@ import com.auction.domain.user.User;
 import org.junit.jupiter.api.Test;
 
 import java.time.Duration;
-import java.util.UUID;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.matchesPattern;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -88,13 +86,6 @@ class CreateAuctionApiTest extends ApiIntegrationTest {
                 .andExpect(content().contentTypeCompatibleWith(PROBLEM_JSON));
     }
 
-    @Test
-    void missingUserHeaderIsABadRequest() throws Exception {
-        mvc.perform(post("/api/auctions").contentType("application/json")
-                        .content(auctionJson(now(), now().plus(Duration.ofDays(1)), "1000")))
-                .andExpect(status().isBadRequest())
-                .andExpect(content().contentTypeCompatibleWith(PROBLEM_JSON));
-    }
 
     @Test
     void buyerIsForbiddenToCreateAnAuction() throws Exception {
@@ -102,13 +93,5 @@ class CreateAuctionApiTest extends ApiIntegrationTest {
                 .andExpect(status().isForbidden())
                 .andExpect(content().contentTypeCompatibleWith(PROBLEM_JSON))
                 .andExpect(jsonPath("$.type").value("urn:bidanddrive:problem:forbidden"));
-    }
-
-    @Test
-    void unknownUserIsNotFound() throws Exception {
-        mvc.perform(post("/api/auctions").header(USER_HEADER, UUID.randomUUID()).contentType("application/json")
-                        .content(auctionJson(now(), now().plus(Duration.ofDays(1)), "1000")))
-                .andExpect(status().isNotFound())
-                .andExpect(jsonPath("$.type").value("urn:bidanddrive:problem:not-found"));
     }
 }

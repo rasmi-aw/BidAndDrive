@@ -3,6 +3,7 @@ package com.auction.app.config;
 import com.auction.application.command.CloseAuctionUseCase;
 import com.auction.application.command.CreateAuctionUseCase;
 import com.auction.application.command.PlaceBidUseCase;
+import com.auction.application.command.ProvisionUserUseCase;
 import com.auction.application.query.GetAuctionUseCase;
 import com.auction.application.query.ListAuctionBidsUseCase;
 import com.auction.application.query.ListRunningAuctionsUseCase;
@@ -46,6 +47,11 @@ class UseCaseConfig {
     @Bean
     CloseAuctionUseCase closeAuctionUseCase(AuctionRepository auctions, PlatformTransactionManager tx) {
         return readWrite(new CloseAuctionUseCase(auctions), tx);
+    }
+
+    @Bean
+    ProvisionUserUseCase provisionUserUseCase(UserRepository users, Clock clock, PlatformTransactionManager tx) {
+        return readWrite(new ProvisionUserUseCase(users, clock), tx);
     }
 
     @Bean

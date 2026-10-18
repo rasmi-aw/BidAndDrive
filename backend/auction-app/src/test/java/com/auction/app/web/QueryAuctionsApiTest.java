@@ -75,7 +75,7 @@ class QueryAuctionsApiTest extends ApiIntegrationTest {
     void getsOneAuctionWithLinks() throws Exception {
         UUID id = runningAuction(seller());
 
-        mvc.perform(get("/api/auctions/{id}", id))
+        mvc.perform(get("/api/auctions/{id}", id).with(anyToken()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(id.toString()))
                 .andExpect(jsonPath("$.status").value("RUNNING"))
@@ -89,7 +89,7 @@ class QueryAuctionsApiTest extends ApiIntegrationTest {
         UUID id = runningAuction(seller());
         closeAuction.handle(new CloseAuctionCommand(new AuctionId(id)));
 
-        mvc.perform(get("/api/auctions/{id}", id))
+        mvc.perform(get("/api/auctions/{id}", id).with(anyToken()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("ENDED"))
                 .andExpect(jsonPath("$._links.self").exists())
@@ -99,7 +99,7 @@ class QueryAuctionsApiTest extends ApiIntegrationTest {
 
     @Test
     void unknownAuctionIsNotFound() throws Exception {
-        mvc.perform(get("/api/auctions/{id}", UUID.randomUUID()))
+        mvc.perform(get("/api/auctions/{id}", UUID.randomUUID()).with(anyToken()))
                 .andExpect(status().isNotFound())
                 .andExpect(content().contentTypeCompatibleWith(PROBLEM_JSON))
                 .andExpect(jsonPath("$.type").value("urn:bidanddrive:problem:not-found"));
@@ -107,7 +107,7 @@ class QueryAuctionsApiTest extends ApiIntegrationTest {
 
     @Test
     void malformedAuctionIdIsABadRequest() throws Exception {
-        mvc.perform(get("/api/auctions/{id}", "not-a-uuid"))
+        mvc.perform(get("/api/auctions/{id}", "not-a-uuid").with(anyToken()))
                 .andExpect(status().isBadRequest())
                 .andExpect(content().contentTypeCompatibleWith(PROBLEM_JSON));
     }
