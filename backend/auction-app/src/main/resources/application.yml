@@ -1,0 +1,11 @@
+spring:
+  application:
+    name: auction
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/auction}
+    username: ${DB_USERNAME:auction}
+    password: ${DB_PASSWORD:auction}
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
