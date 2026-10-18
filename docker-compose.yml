@@ -1,5 +1,6 @@
-# Local stack: PostgreSQL for the API and Keycloak with the "bidanddrive" realm.
-# The API itself runs from the IDE or with `java -jar` (see CLAUDE.md).
+# Full stack: PostgreSQL, Keycloak, backend API, frontend (nginx).
+#   docker compose up -d --build              -> everything, app on http://localhost:5173
+#   docker compose up -d postgres keycloak    -> infrastructure only, for running the backend / Vite locally
 name: bidanddrive
 
 services:
@@ -33,6 +34,33 @@ services:
       - "${KEYCLOAK_PORT:-8180}:8080"
     volumes:
       - ./docker/keycloak:/opt/keycloak/data/import:ro
+
+  backend:
+    build: ./backend
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DB_URL: jdbc:postgresql://postgres:5432/auction
+      DB_USERNAME: auction
+      DB_PASSWORD: auction
+      # tokens are issued to the browser via localhost, so that is the issuer to validate ...
+      OAUTH2_ISSUER_URI: "http://localhost:${KEYCLOAK_PORT:-8180}/realms/bidanddrive"
+      # ... but the signing keys are fetched over the compose network
+      SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI: http://keycloak:8080/realms/bidanddrive/protocol/openid-connect/certs
+    ports:
+      - "${BACKEND_PORT:-8080}:8080"
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        VITE_KEYCLOAK_URL: "http://localhost:${KEYCLOAK_PORT:-8180}"
+    depends_on:
+      - backend
+    ports:
+      # the Keycloak client only allows redirects to http://localhost:5173
+      - "5173:80"
 
 volumes:
   postgres-data:
