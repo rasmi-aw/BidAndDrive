@@ -415,6 +415,27 @@ Built in 5 TDD steps. Each step: tests written first and seen failing, then impl
   - **How the agent was used:** CLAUDE.md harness, one prompt per step, tests first, small commits, machine-checked rules, real-stack verification, review + validation per step, and what this process caught.
 - No code changed.
 
+**Status:** ✅ Validated
+
+---
+
+## Prompt 14 — run.sh
+
+**Date:** 2026-10-18
+
+### Prompt
+
+> create a run.sh script that permits to build and run the app entirely
+
+### Response
+
+- Added `run.sh` at the root (commit `ea7d6fc`), on top of the Docker compose stack (only Docker needed):
+  - `./run.sh`: checks Docker, the compose plugin and curl; checks that ports 5433 / 8180 / 8080 / 5173 are free (or already held by this stack); builds the images; starts the 4 services; **waits until Keycloak, the API and the frontend actually answer** (prints the service's last logs if one doesn't); prints the URLs and test logins.
+  - `./run.sh --test`: runs `mvn verify` and `npm ci && npm test && npm run build` first (needs Java 25, Maven, Node).
+  - `status`, `logs`, `stop` (keeps the data), `clean` (deletes the data), `--help`.
+- README "How to run" and CLAUDE.md commands mention it.
+- **Verified:** shellcheck clean; full run (41 s with cached images); re-run while running; login + create through `localhost:5173` (201); stop → restart keeps the data; clean; a busy port 8080 is reported (exit 1, nothing started); `--test` runs both suites then starts the stack (~1 min). Everything taken down afterwards.
+
 **Status:** ⏳ Waiting for your validation
 
 ---

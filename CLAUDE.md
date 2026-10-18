@@ -78,6 +78,7 @@ Domain logic gets plain unit tests (no Spring context).
 Base package: `com.auction` (`com.auction.domain`, `com.auction.application`, `com.auction.infrastructure`, `com.auction.app`).
 
 ```bash
+./run.sh                                     # build + start the full stack and wait until it answers (./run.sh --help)
 docker compose up -d --build                 # full stack: app on http://localhost:5173, API on 8080, Keycloak on 8180 (admin/admin)
 docker compose up -d postgres keycloak       # infrastructure only, to run the backend / Vite locally
 cd backend
@@ -98,6 +99,7 @@ npm run build                                # vue-tsc type-check + production b
 
 - App settings (env): `DB_URL` / `DB_USERNAME` / `DB_PASSWORD` (default `localhost:5433/auction`, `auction`/`auction`), `OAUTH2_ISSUER_URI` (default `http://localhost:8180/realms/bidanddrive`), `OAUTH2_AUDIENCE` (default `auction-api`). Compose ports: `POSTGRES_PORT`, `KEYCLOAK_PORT`.
 - Docker: `backend/Dockerfile` (Maven build, tests skipped — CI runs them; Java 25 JRE runtime) and `frontend/Dockerfile` (Vite build, nginx). nginx proxies `/api` with the browser's Host so HAL links stay on `localhost:5173`. In compose the backend validates the issuer `http://localhost:8180/...` (what the browser sees) but fetches JWKS from `http://keycloak:8080` (`SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI`). Keycloak settings are compiled into the frontend bundle (build args `VITE_KEYCLOAK_*`).
+- `run.sh` wraps docker compose (prerequisites, port check, readiness wait, URLs); keep its ports and URLs in sync with `docker-compose.yml`.
 - CI (`.github/workflows/ci.yml`) runs the same commands as the definition of done; keep them in sync when changing build steps.
 - The realm export is the source of truth for roles, clients and test users: edit `docker/keycloak/bidanddrive-realm.json`, then `docker compose down && docker compose up -d` (it is only imported when the realm does not exist).
 

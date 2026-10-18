@@ -14,9 +14,20 @@ Sellers put cars up for auction, buyers bid, the highest bid wins.
 
 ## How to run
 
-### Everything with Docker compose
+### One command
 
 Requires Docker only.
+
+```bash
+./run.sh            # build the images, start everything, wait until it answers, print the URLs
+./run.sh --test     # same, after running the backend and frontend test suites (needs Java 25, Maven, Node)
+./run.sh stop       # stop, keep the data          ./run.sh clean   # stop and delete the data
+./run.sh logs       # follow the logs              ./run.sh status  # list the containers
+```
+
+`run.sh` checks the prerequisites and that the ports are free, then runs the Docker compose stack below.
+
+### Everything with Docker compose
 
 ```bash
 docker compose up -d --build
