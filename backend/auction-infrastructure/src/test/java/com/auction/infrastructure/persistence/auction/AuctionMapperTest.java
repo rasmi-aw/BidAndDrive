@@ -96,6 +96,7 @@ class AuctionMapperTest {
         assertThat(summary.condition()).isEqualTo(CarCondition.GOOD);
         assertThat(summary.yearMade()).isEqualTo(Year.of(2018));
         assertThat(summary.yearRegistered()).isEqualTo(Year.of(2019));
+        assertThat(summary.description()).isEqualTo("One owner");
         assertThat(summary.startPrice()).isEqualTo(Money.of("1000"));
         assertThat(summary.currentHighestBid()).isEqualTo(Money.of("1200"));
         assertThat(summary.startDate()).isEqualTo(auction.getStartDate());

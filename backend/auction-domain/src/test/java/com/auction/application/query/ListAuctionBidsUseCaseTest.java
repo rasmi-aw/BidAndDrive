@@ -73,6 +73,6 @@ class ListAuctionBidsUseCaseTest {
 
     private AuctionSummary summary() {
         return new AuctionSummary(auctionId, UserId.newId(), "Peugeot 308", CarCondition.GOOD,
-                Year.of(2018), Year.of(2019), Money.of("1000"), null, START, END, AuctionStatus.RUNNING);
+                Year.of(2018), Year.of(2019), "One owner", Money.of("1000"), null, START, END, AuctionStatus.RUNNING);
     }
 }

@@ -59,6 +59,7 @@ final class AuctionMapper {
                 entity.getCarCondition(),
                 Year.of(entity.getYearMade()),
                 Year.of(entity.getYearRegistered()),
+                entity.getDescription(),
                 new Money(entity.getStartPrice()),
                 money(entity.getCurrentHighestBid()),
                 entity.getStartDate(),

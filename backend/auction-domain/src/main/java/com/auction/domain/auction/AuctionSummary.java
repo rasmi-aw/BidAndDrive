@@ -7,7 +7,7 @@ import java.time.Instant;
 import java.time.Year;
 
 /**
- * Read model for auction listings. {@code currentHighestBid} is null when no bid was placed yet.
+ * Read model for auction listings. {@code description} is optional; {@code currentHighestBid} is null when no bid was placed yet.
  */
 public record AuctionSummary(
         AuctionId id,
@@ -16,6 +16,7 @@ public record AuctionSummary(
         CarCondition condition,
         Year yearMade,
         Year yearRegistered,
+        String description,
         Money startPrice,
         Money currentHighestBid,
         Instant startDate,

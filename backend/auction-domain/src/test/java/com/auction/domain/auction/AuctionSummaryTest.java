@@ -34,6 +34,6 @@ class AuctionSummaryTest {
 
     private static AuctionSummary summary(AuctionStatus status) {
         return new AuctionSummary(AuctionId.newId(), UserId.newId(), "Peugeot 308", CarCondition.GOOD,
-                Year.of(2018), Year.of(2019), Money.of("1000"), null, START, END, status);
+                Year.of(2018), Year.of(2019), "One owner", Money.of("1000"), null, START, END, status);
     }
 }
