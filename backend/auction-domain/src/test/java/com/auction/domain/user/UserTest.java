@@ -51,6 +51,55 @@ class UserTest {
     }
 
     @Test
+    void registersWithAnIdAssignedByTheIdentityProvider() {
+        UserId id = UserId.newId();
+
+        User user = User.register(id, "Jane Doe", EMAIL, PHONE, Role.BUYER, CLOCK);
+
+        assertThat(user.getId()).isEqualTo(id);
+        assertThat(user.getCreatedAt()).isEqualTo(NOW);
+    }
+
+    @Test
+    void updatingTheProfileChangesFieldsAndTouchesUpdatedAt() {
+        User user = User.register("Jane Doe", EMAIL, PHONE, Role.BUYER, CLOCK);
+        Instant later = NOW.plusSeconds(3600);
+
+        boolean changed = user.updateProfile("Jane Smith", new Email("jane.smith@example.com"),
+                new Phone("+33699999999"), Role.SELLER, Clock.fixed(later, ZoneOffset.UTC));
+
+        assertThat(changed).isTrue();
+        assertThat(user.getFullName()).isEqualTo("Jane Smith");
+        assertThat(user.getEmail()).isEqualTo(new Email("jane.smith@example.com"));
+        assertThat(user.getPhone()).isEqualTo(new Phone("+33699999999"));
+        assertThat(user.getRole()).isEqualTo(Role.SELLER);
+        assertThat(user.getCreatedAt()).isEqualTo(NOW);
+        assertThat(user.getUpdatedAt()).isEqualTo(later);
+    }
+
+    @Test
+    void updatingWithTheSameProfileChangesNothing() {
+        User user = User.register("Jane Doe", EMAIL, PHONE, Role.BUYER, CLOCK);
+
+        boolean changed = user.updateProfile(" Jane Doe ", EMAIL, PHONE, Role.BUYER,
+                Clock.fixed(NOW.plusSeconds(3600), ZoneOffset.UTC));
+
+        assertThat(changed).isFalse();
+        assertThat(user.getUpdatedAt()).isEqualTo(NOW);
+    }
+
+    @Test
+    void updatingTheProfileValidatesLikeRegistration() {
+        User user = User.register("Jane Doe", EMAIL, PHONE, Role.BUYER, CLOCK);
+
+        assertThatThrownBy(() -> user.updateProfile(" ", EMAIL, PHONE, Role.BUYER, CLOCK))
+                .isInstanceOf(DomainValidationException.class).hasMessageContaining("fullName");
+        assertThatThrownBy(() -> user.updateProfile("Jane Doe", EMAIL, PHONE, null, CLOCK))
+                .isInstanceOf(DomainValidationException.class).hasMessageContaining("role");
+        assertThat(user.getFullName()).isEqualTo("Jane Doe");
+    }
+
+    @Test
     void restoresAStoredUserAsIs() {
         UserId id = UserId.newId();
         Instant updatedAt = NOW.plusSeconds(60);
