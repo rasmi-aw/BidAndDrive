@@ -9,3 +9,6 @@ spring:
     open-in-view: false
     hibernate:
       ddl-auto: validate
+springdoc:
+  # document only the responses declared on each operation, not every @ExceptionHandler on every endpoint
+  override-with-generic-response: false
