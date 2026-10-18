@@ -10,7 +10,7 @@ import com.auction.domain.auction.BidRepository;
 import com.auction.domain.shared.Money;
 import com.auction.domain.user.User;
 import com.auction.domain.user.UserRepository;
-import com.auction.infrastructure.PostgresIntegrationTest;
+import com.auction.infrastructure.InfrastructureIntegrationTest;
 import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -26,7 +26,7 @@ import static com.auction.infrastructure.PersistenceFixtures.newSeller;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-class AuctionPersistenceAdapterTest extends PostgresIntegrationTest {
+class AuctionPersistenceAdapterTest extends InfrastructureIntegrationTest {
 
     @Autowired
     private AuctionRepository auctionRepository;

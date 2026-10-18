@@ -11,7 +11,7 @@ import com.auction.domain.shared.Page;
 import com.auction.domain.shared.PageQuery;
 import com.auction.domain.user.User;
 import com.auction.domain.user.UserRepository;
-import com.auction.infrastructure.PostgresIntegrationTest;
+import com.auction.infrastructure.InfrastructureIntegrationTest;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -25,7 +25,7 @@ import static com.auction.infrastructure.PersistenceFixtures.newBuyer;
 import static com.auction.infrastructure.PersistenceFixtures.newSeller;
 import static org.assertj.core.api.Assertions.assertThat;
 
-class AuctionReadPersistenceAdapterTest extends PostgresIntegrationTest {
+class AuctionReadPersistenceAdapterTest extends InfrastructureIntegrationTest {
 
     @Autowired
     private AuctionReadRepository auctionReadRepository;

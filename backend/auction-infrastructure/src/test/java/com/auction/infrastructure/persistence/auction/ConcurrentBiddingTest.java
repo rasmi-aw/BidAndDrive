@@ -12,7 +12,7 @@ import com.auction.domain.shared.DomainEventPublisher;
 import com.auction.domain.shared.Money;
 import com.auction.domain.user.User;
 import com.auction.domain.user.UserRepository;
-import com.auction.infrastructure.PostgresIntegrationTest;
+import com.auction.infrastructure.InfrastructureIntegrationTest;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -40,7 +40,7 @@ import static org.assertj.core.api.Assertions.catchThrowable;
 /**
  * Two buyers bid on the same car at the same moment: optimistic locking must let exactly one bid win.
  */
-class ConcurrentBiddingTest extends PostgresIntegrationTest {
+class ConcurrentBiddingTest extends InfrastructureIntegrationTest {
 
     @Autowired
     private AuctionRepository auctionRepository;

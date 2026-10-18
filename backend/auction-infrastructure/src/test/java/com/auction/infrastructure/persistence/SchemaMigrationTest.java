@@ -1,6 +1,6 @@
 package com.auction.infrastructure.persistence;
 
-import com.auction.infrastructure.PostgresIntegrationTest;
+import com.auction.infrastructure.InfrastructureIntegrationTest;
 import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -13,7 +13,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 /**
  * The schema comes from the Flyway migrations (never from Hibernate), in tests as in production.
  */
-class SchemaMigrationTest extends PostgresIntegrationTest {
+class SchemaMigrationTest extends InfrastructureIntegrationTest {
 
     @Autowired
     private Flyway flyway;

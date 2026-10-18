@@ -9,6 +9,11 @@ spring:
     open-in-view: false
     hibernate:
       ddl-auto: validate
+  kafka:
+    # docker compose publishes the broker to the host on 9094; inside compose it is kafka:9092
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9094}
+    producer:
+      acks: all
   security:
     oauth2:
       resourceserver:

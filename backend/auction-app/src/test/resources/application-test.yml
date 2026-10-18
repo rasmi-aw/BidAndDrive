@@ -3,3 +3,8 @@ spring:
     url: jdbc:h2:mem:auction;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DEFAULT_NULL_ORDERING=HIGH;DB_CLOSE_DELAY=-1
     username: sa
     password:
+
+# no broker in the H2 tests: events stay in-process (Kafka is tested with Testcontainers in auction-infrastructure)
+auction:
+  kafka:
+    enabled: false

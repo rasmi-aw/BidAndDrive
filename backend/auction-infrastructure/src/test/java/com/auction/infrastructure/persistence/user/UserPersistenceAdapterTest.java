@@ -6,7 +6,7 @@ import com.auction.domain.user.Role;
 import com.auction.domain.user.User;
 import com.auction.domain.user.UserId;
 import com.auction.domain.user.UserRepository;
-import com.auction.infrastructure.PostgresIntegrationTest;
+import com.auction.infrastructure.InfrastructureIntegrationTest;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 
@@ -17,7 +17,7 @@ import static com.auction.infrastructure.PersistenceFixtures.CLOCK;
 import static com.auction.infrastructure.PersistenceFixtures.newSeller;
 import static org.assertj.core.api.Assertions.assertThat;
 
-class UserPersistenceAdapterTest extends PostgresIntegrationTest {
+class UserPersistenceAdapterTest extends InfrastructureIntegrationTest {
 
     @Autowired
     private UserRepository userRepository;
