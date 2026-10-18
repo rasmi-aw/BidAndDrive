@@ -22,6 +22,9 @@ import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
 class ArchitectureTest {
 
     private static final String DOMAIN = "com.auction.domain..";
+    private static final String APPLICATION = "com.auction.application..";
+    private static final String COMMANDS = "com.auction.application.command..";
+    private static final String QUERIES = "com.auction.application.query..";
     private static final String INFRASTRUCTURE = "com.auction.infrastructure..";
     private static final String APP = "com.auction.app..";
 
@@ -39,6 +42,24 @@ class ArchitectureTest {
             classes().that().resideInAPackage(DOMAIN)
                     .should().onlyDependOnClassesThat().resideInAnyPackage(DOMAIN, "java..", "lombok")
                     .because("the domain depends on nothing outside itself");
+
+    @ArchTest
+    static final ArchRule application_depends_only_on_the_domain_and_the_jdk =
+            classes().that().resideInAPackage(APPLICATION)
+                    .should().onlyDependOnClassesThat().resideInAnyPackage(APPLICATION, DOMAIN, "java..", "lombok")
+                    .because("use cases are framework free; the app module wires them");
+
+    @ArchTest
+    static final ArchRule queries_do_not_depend_on_commands =
+            noClasses().that().resideInAPackage(QUERIES)
+                    .should().dependOnClassesThat().resideInAPackage(COMMANDS)
+                    .because("CQRS: command and query use cases are kept separate");
+
+    @ArchTest
+    static final ArchRule commands_do_not_depend_on_queries =
+            noClasses().that().resideInAPackage(COMMANDS)
+                    .should().dependOnClassesThat().resideInAPackage(QUERIES)
+                    .because("CQRS: command and query use cases are kept separate");
 
     @ArchTest
     static final ArchRule infrastructure_does_not_depend_on_app =
