@@ -50,6 +50,30 @@ class UserTest {
         assertThat(User.register("Jane Doe", EMAIL, PHONE, Role.BUYER, CLOCK).isSeller()).isFalse();
     }
 
+    @Test
+    void restoresAStoredUserAsIs() {
+        UserId id = UserId.newId();
+        Instant updatedAt = NOW.plusSeconds(60);
+
+        User user = User.restore(id, "Jane Doe", EMAIL, PHONE, Role.BUYER, NOW, updatedAt);
+
+        assertThat(user.getId()).isEqualTo(id);
+        assertThat(user.getFullName()).isEqualTo("Jane Doe");
+        assertThat(user.getEmail()).isEqualTo(EMAIL);
+        assertThat(user.getPhone()).isEqualTo(PHONE);
+        assertThat(user.getRole()).isEqualTo(Role.BUYER);
+        assertThat(user.getCreatedAt()).isEqualTo(NOW);
+        assertThat(user.getUpdatedAt()).isEqualTo(updatedAt);
+    }
+
+    @Test
+    void restoreStillRequiresEveryField() {
+        assertThatThrownBy(() -> User.restore(null, "Jane Doe", EMAIL, PHONE, Role.BUYER, NOW, NOW))
+                .isInstanceOf(DomainValidationException.class).hasMessageContaining("id");
+        assertThatThrownBy(() -> User.restore(UserId.newId(), "Jane Doe", EMAIL, PHONE, Role.BUYER, NOW, null))
+                .isInstanceOf(DomainValidationException.class).hasMessageContaining("updatedAt");
+    }
+
     @ParameterizedTest
     @NullAndEmptySource
     @ValueSource(strings = "   ")

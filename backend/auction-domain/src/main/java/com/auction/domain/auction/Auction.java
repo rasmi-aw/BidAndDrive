@@ -37,21 +37,31 @@ public final class Auction {
     /** Optimistic-locking version, maintained by the persistence adapter. */
     private final long version;
 
-    private Auction(AuctionId id, UserId sellerId, CarDetails car, Money startPrice, Instant startDate, Instant endDate,
-                    AuctionStatus status, long version) {
+    private Auction(AuctionId id, UserId sellerId, CarDetails car, Money startPrice, Money currentHighestBid,
+                    UserId highestBidderId, Instant startDate, Instant endDate, AuctionStatus status,
+                    UserId wonByUserId, long version) {
         this.id = Guard.notNull(id, "id");
         this.sellerId = Guard.notNull(sellerId, "sellerId");
         this.car = Guard.notNull(car, "car");
         this.startPrice = Guard.notNull(startPrice, "startPrice");
+        this.currentHighestBid = currentHighestBid;
+        this.highestBidderId = highestBidderId;
         this.startDate = Guard.notNull(startDate, "startDate");
         this.endDate = Guard.notNull(endDate, "endDate");
         this.status = Guard.notNull(status, "status");
+        this.wonByUserId = wonByUserId;
         this.version = version;
         if (startPrice.isZero()) {
             throw new DomainValidationException("startPrice must be greater than 0");
         }
         if (!endDate.isAfter(startDate)) {
             throw new DomainValidationException("endDate (" + endDate + ") must be after startDate (" + startDate + ")");
+        }
+        if ((currentHighestBid == null) != (highestBidderId == null)) {
+            throw new DomainValidationException("currentHighestBid and highestBidderId must be both set or both empty");
+        }
+        if (wonByUserId != null && status != AuctionStatus.ENDED) {
+            throw new DomainValidationException("wonByUserId can only be set on an ENDED auction");
         }
     }
 
@@ -60,7 +70,18 @@ public final class Auction {
         if (!seller.isSeller()) {
             throw new OnlySellerCanCreateAuctionException(seller.getId());
         }
-        return new Auction(AuctionId.newId(), seller.getId(), car, startPrice, startDate, endDate, AuctionStatus.RUNNING, 0);
+        return new Auction(AuctionId.newId(), seller.getId(), car, startPrice, null, null, startDate, endDate,
+                AuctionStatus.RUNNING, null, 0);
+    }
+
+    /**
+     * Rebuilds an auction from storage. Structural invariants are checked; creation rules (seller role) are not.
+     */
+    public static Auction restore(AuctionId id, UserId sellerId, CarDetails car, Money startPrice,
+                                  Money currentHighestBid, UserId highestBidderId, Instant startDate, Instant endDate,
+                                  AuctionStatus status, UserId wonByUserId, long version) {
+        return new Auction(id, sellerId, car, startPrice, currentHighestBid, highestBidderId, startDate, endDate,
+                status, wonByUserId, version);
     }
 
     /**

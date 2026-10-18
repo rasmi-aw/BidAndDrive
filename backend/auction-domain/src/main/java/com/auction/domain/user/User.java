@@ -38,6 +38,14 @@ public final class User {
         return new User(UserId.newId(), fullName, email, phone, role, now, now);
     }
 
+    /**
+     * Rebuilds a user from storage.
+     */
+    public static User restore(UserId id, String fullName, Email email, Phone phone, Role role,
+                               Instant createdAt, Instant updatedAt) {
+        return new User(id, fullName, email, phone, role, createdAt, updatedAt);
+    }
+
     public boolean isSeller() {
         return role == Role.SELLER;
     }
