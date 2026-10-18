@@ -8,7 +8,17 @@ Sellers put cars up for auction, buyers bid, the highest bid wins.
 | Security | Spring Security OAuth2 resource server, JWTs from Keycloak 26 (realm roles `SELLER` / `BUYER`) |
 | Frontend | Vue 3 + TypeScript + Vite, Pinia, vue-router, keycloak-js |
 | Tests | JUnit 5, Mockito, ArchUnit, MockMvc (H2), Testcontainers (PostgreSQL), Vitest |
-| Delivery | Dockerfiles, docker compose, GitHub Actions on every push |
+| Delivery | Dockerfiles, docker compose (dev + prod), GitHub Actions on every push |
+
+## Sommaire (table of contents)
+
+1. [How to run](#how-to-run)
+   - [One command](#one-command) · [Docker compose](#everything-with-docker-compose) · [Locally](#locally) · [Production](#production) · [Tests](#tests)
+2. [🔑 Test accounts and credentials](#test-accounts-and-credentials)
+3. [Architecture](#architecture)
+4. [User stories and acceptance criteria](#user-stories-and-acceptance-criteria)
+5. [What was skipped, and why](#what-was-skipped-and-why)
+6. [How the agent was used](#how-the-agent-was-used)
 
 ---
 
@@ -35,18 +45,18 @@ docker compose up -d --build
 
 | What | URL | Login |
 |---|---|---|
-| App | http://localhost:5173 | `seller` / `seller`, `buyer` / `buyer` |
+| App | http://localhost:5173 | [test accounts](#test-accounts-and-credentials) |
 | API + Swagger UI | http://localhost:8080/swagger-ui/index.html | bearer token (see below) |
-| Keycloak admin | http://localhost:8180 | `admin` / `admin` |
-| PostgreSQL | `localhost:5433`, db `auction` | `auction` / `auction` |
+| Keycloak admin | http://localhost:8180/admin | [admin credentials](#administration-and-infrastructure) |
+| PostgreSQL | `localhost:5433`, db `auction` | [database credentials](#administration-and-infrastructure) |
 
 PostgreSQL is published on **5433** because 5432 is often taken; override with `POSTGRES_PORT`. The frontend has to stay on **5173**, the only redirect URI the Keycloak client allows.
 
 `docker compose down -v` stops everything and deletes the data.
 
-### Locally (backend from the IDE / jar, frontend with Vite)
+### Locally
 
-Requires Java 25, Maven 3.9, Node ≥ 20.18, Docker (for PostgreSQL, Keycloak and the Testcontainers tests).
+Backend from the IDE or the jar, frontend with the Vite dev server. Requires Java 25, Maven 3.9, Node ≥ 20.18, Docker (for PostgreSQL, Keycloak and the Testcontainers tests).
 
 ```bash
 docker compose up -d postgres keycloak        # infrastructure only
@@ -69,6 +79,20 @@ curl -s -X POST http://localhost:8180/realms/bidanddrive/protocol/openid-connect
 
 Backend settings (environment variables): `DB_URL`, `DB_USERNAME`, `DB_PASSWORD`, `OAUTH2_ISSUER_URI`, `OAUTH2_AUDIENCE`. Frontend build settings: `VITE_KEYCLOAK_URL`, `VITE_KEYCLOAK_REALM`, `VITE_KEYCLOAK_CLIENT_ID`.
 
+### Production
+
+`docker-compose.prod.yml` runs the same images for a real deployment. Every secret and environment-specific value comes from environment variables:
+
+```bash
+cp .env.prod.example .env.prod      # fill in the public URLs and the secrets; .env.prod is git-ignored
+docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --build
+```
+
+- **Required** (compose refuses to start without them): `APP_PUBLIC_URL`, `KEYCLOAK_PUBLIC_URL`, `POSTGRES_PASSWORD`, `KEYCLOAK_DB_PASSWORD`, `KEYCLOAK_ADMIN_PASSWORD`. All other settings are optional and documented in [`.env.prod.example`](.env.prod.example).
+- **Keycloak** runs in production mode with its own PostgreSQL, and imports [`docker/keycloak-prod`](docker/keycloak-prod/bidanddrive-realm.json). That realm has **no test users** and no password grant, and its redirect URIs come from `APP_PUBLIC_URL`.
+- **Only the app (`FRONTEND_PORT`, default 80) and Keycloak (`KEYCLOAK_PORT`) are published.** Put a TLS reverse proxy in front of them that forwards `Host` and `X-Forwarded-Proto`, so the HAL links come out as `https://…`. The databases and the backend stay on the internal network.
+- **API docs are off** unless `API_DOCS_ENABLED=true`.
+
 ### Tests
 
 ```bash
@@ -77,6 +101,43 @@ cd frontend && npm test && npm run build      # 34 Vitest tests, vue-tsc type-ch
 ```
 
 CI (`.github/workflows/ci.yml`) runs the same commands on every push, then builds both Docker images.
+
+---
+
+## Test accounts and credentials
+
+> [!IMPORTANT]
+> **Local / dev stack only** (`./run.sh`, `docker-compose.yml`). These accounts are created automatically from [`docker/keycloak/bidanddrive-realm.json`](docker/keycloak/bidanddrive-realm.json) when Keycloak starts. Their passwords are public, so never reuse them anywhere else. The [production stack](#production) imports no test user.
+
+### App users (Keycloak realm `bidanddrive`)
+
+Log in at **http://localhost:5173** with the *Log in* button.
+
+| Username | Password | Role | Name | Email | Phone |
+|---|---|---|---|---|---|
+| `seller` | `seller` | **SELLER**: creates auctions | Sam Seller | seller@bidanddrive.local | +33600000001 |
+| `buyer1` | `buyer1` | **BUYER**: bids | Alice Martin | buyer1@bidanddrive.local | +33600000011 |
+| `buyer2` | `buyer2` | **BUYER**: bids | Bruno Dubois | buyer2@bidanddrive.local | +33600000012 |
+| `buyer3` | `buyer3` | **BUYER**: bids | Chloe Bernard | buyer3@bidanddrive.local | +33600000013 |
+
+> [!TIP]
+> **To test a real auction:**
+> 1. Create an auction as `seller`.
+> 2. Bid on it as `buyer1`, `buyer2` and `buyer3`, one browser profile or private window each. Keycloak keeps one session per browser.
+>
+> The API side of a bid race is covered by `ConcurrentBiddingTest`.
+
+### Administration and infrastructure
+
+| What | Where | Username | Password |
+|---|---|---|---|
+| **Keycloak admin console** (master realm) | http://localhost:8180/admin | `admin` | `admin` |
+| **PostgreSQL** (app database) | `localhost:5433`, database `auction` | `auction` | `auction` |
+
+> [!WARNING]
+> **Production:** none of the values above apply. The Keycloak admin, `KEYCLOAK_ADMIN_USER` / `KEYCLOAK_ADMIN_PASSWORD`, is only a temporary bootstrap account; replace it in the admin console after the first start. The database passwords come from `.env.prod`. Create real users in the `bidanddrive` realm and give each one **exactly one** role, `SELLER` or `BUYER`, plus a **phone number**. The API refuses tokens without them (403 `incomplete-identity`).
+
+The dev realm file is imported when Keycloak starts with an empty store. To apply a change to it, recreate the container with `./run.sh stop && ./run.sh`.
 
 ---
 
@@ -221,7 +282,7 @@ Each criterion is covered by an automated test; the main test class is given.
 | Unique email in `users` | With soft delete it requires a partial unique index (`WHERE deleted = false`), which is PostgreSQL-only, while tests also run on H2. Keycloak already guarantees unique emails. |
 | Race on a brand-new user's first two simultaneous requests | Both could try to create the user; unlikely in practice and not handled yet. |
 | Currency | One implicit currency; the UI shows EUR. |
-| Production setup | Keycloak runs in dev mode with a password grant enabled for testing, images aren't pushed to a registry, and there's no TLS/hosting config. |
+| Production hosting | `docker-compose.prod.yml` exists (secrets from env, Keycloak in production mode, no test users). Not included: the TLS reverse proxy itself, pushing images to a registry, backups and monitoring. |
 | UI component tests, browser end-to-end tests | The tests cover the store, composables and HTTP client. The real Keycloak login was checked manually through the stack, not automated. |
 | Latest frontend tool majors | Node 20.18 (the local version) limits the stack to Vite 6 / Vitest 3 / vue-router 4 / Pinia 3. Upgrading Node to 22 allows the newer majors. |
 
@@ -232,7 +293,7 @@ Each criterion is covered by an automated test; the main test class is given.
 The project was built with **Claude Code**, one prompt per step, following the order in [`PROMPTS.md`](PROMPTS.md):
 
 1. **A harness first.** The first commit added [`CLAUDE.md`](CLAUDE.md). It holds the stack, the hexagonal/DDD boundaries, CQRS, soft delete only, TDD, Conventional Commits with one small commit per step and never on a red build, and "`mvn verify` before saying it's done". Claude Code loads it in every session, so these rules apply to every step without being repeated.
-2. **One small step per prompt:** scaffold → domain model (TDD) → ArchUnit → use cases → JPA + locking → REST → security → frontend → Docker/CI → migrations check. Each prompt was small enough to review.
+2. **One small step per prompt:** scaffold → domain model (TDD) → ArchUnit → use cases → JPA + locking → REST → security → frontend → Docker/CI → migrations check → README → `run.sh` → production compose → test accounts. Each prompt was small enough to review.
 3. **Test first, every time.** For each step the agent wrote the tests, ran them to see them fail, implemented, ran `mvn verify` (and `npm test` / `npm run build`), then committed. The history is 40+ small commits; none was made on a red build.
 4. **Rules made machine-checkable,** so they don't depend on the agent remembering them: the Maven Enforcer rule (domain without frameworks), ArchUnit (layers, CQRS separation), `ddl-auto=validate` plus `SchemaMigrationTest`, and the CI workflow.
 5. **Verification beyond unit tests.** Where mocks could hide problems, the agent ran the real thing:
