@@ -11,7 +11,8 @@ auction_mvp/
 │   ├── auction-infrastructure/  # adapters implementing the domain ports
 │   └── auction-app/          # Spring Boot app: controllers + configuration
 ├── frontend/                 # Vue 3 + TypeScript + Vite
-└── docker-compose.yml        # local stack
+├── docker/keycloak/          # Keycloak realm export (imported on startup)
+└── docker-compose.yml        # local stack: PostgreSQL (5433) + Keycloak (8180)
 ```
 
 ## Architecture
@@ -40,7 +41,9 @@ auction_mvp/
 - Use cases are registered in `UseCaseConfig` and wrapped by `TransactionalProxies` (commands read-write, queries read-only). Add every new use case there.
 - Responses are HAL (`spring-boot-starter-hateoas`): `EntityModel` with `self` / `bids` / `place-bid` (only while open for bidding) links; paged lists via `PagedModels` (self/prev/next + `page` metadata). An empty page has no `_embedded` key.
 - Errors are RFC 9457 `ProblemDetail` from `ApiExceptionHandler`, `type` = `urn:bidanddrive:problem:<slug>`: 400 validation / invalid-value, 403 forbidden (role rules), 404 not-found, 409 bid-too-low / auction-not-open / concurrent-modification, 422 for any unmapped domain rule. Map each new domain exception explicitly.
-- The caller is identified by the `X-User-Id` header — a stand-in until authentication exists, not a security mechanism.
+- **Security:** OAuth2 resource server with Keycloak JWTs (`web.security.SecurityConfig`). `GET /api/auctions/running` and the API docs are public; everything else needs a bearer token. Realm roles (`realm_access.roles`) become `ROLE_SELLER` / `ROLE_BUYER` (`KeycloakRealmRoleConverter`); `POST /api/auctions` needs SELLER, `POST .../bids` needs BUYER. Issuer and audience (`auction-api`) are validated.
+- The caller's id is the token `sub`. Controllers take `@CurrentUser UserId`, which provisions or updates the local user from the token claims (`name`, `email`, `phone_number`, exactly one auction role) via `ProvisionUserUseCase`; missing claims give 403 `incomplete-identity`. Never take the user id from the request.
+- Spring Security's 401/403 are written as `ProblemDetail` too (`SecurityProblemHandler`), keeping the `WWW-Authenticate` header.
 - OpenAPI via springdoc at `/v3/api-docs` and `/swagger-ui/index.html`; declare status codes with `@ApiResponse`; error bodies are documented as `ProblemDetail` automatically.
 
 ## Workflow
@@ -65,15 +68,22 @@ Domain logic gets plain unit tests (no Spring context).
 Base package: `com.auction` (`com.auction.domain`, `com.auction.application`, `com.auction.infrastructure`, `com.auction.app`).
 
 ```bash
+docker compose up -d                         # PostgreSQL on 5433, Keycloak on 8180 (admin/admin), realm "bidanddrive"
 cd backend
 mvn verify                                   # full build + tests (definition of done)
-java -jar auction-app/target/auction-app-0.0.1-SNAPSHOT.jar   # run the app after verify (needs PostgreSQL; DB_URL/DB_USERNAME/DB_PASSWORD, defaults localhost:5432/auction, auction/auction)
+java -jar auction-app/target/auction-app-0.0.1-SNAPSHOT.jar   # run the app after verify; defaults match docker compose
+# token for a test user (seller/seller or buyer/buyer):
+curl -s -X POST http://localhost:8180/realms/bidanddrive/protocol/openid-connect/token \
+  -d grant_type=password -d client_id=auction-frontend -d username=seller -d password=seller
 ```
+
+- App settings (env): `DB_URL` / `DB_USERNAME` / `DB_PASSWORD` (default `localhost:5433/auction`, `auction`/`auction`), `OAUTH2_ISSUER_URI` (default `http://localhost:8180/realms/bidanddrive`), `OAUTH2_AUDIENCE` (default `auction-api`). Compose ports: `POSTGRES_PORT`, `KEYCLOAK_PORT`.
+- The realm export is the source of truth for roles, clients and test users: edit `docker/keycloak/bidanddrive-realm.json`, then `docker compose down && docker compose up -d` (it is only imported when the realm does not exist).
 
 - Library versions live in `backend/pom.xml` only; child POMs declare dependencies without versions.
 - `auction-domain` has a `maven-enforcer` rule that fails the build on any Spring / JPA / Hibernate dependency.
 - The context test uses H2 through the `test` profile (`auction-app/src/test/resources/application-test.yml`); Flyway migrates it and Hibernate validates the mapping.
-- API tests extend `ApiIntegrationTest` (full app, MockMvc, H2, tables cleared before each test; seed users through `UserRepository`).
+- API tests extend `ApiIntegrationTest` (full app, MockMvc, H2, tables cleared before each test; seed users through `UserRepository`). Authenticate with `tokenOf(user)` / `token(sub, claims, roles...)` / `anyToken()`: `jwt()` mocks with Keycloak-shaped claims, mapped by the real `KeycloakRealmRoleConverter`.
 - Infrastructure tests run against real PostgreSQL via Testcontainers (Docker required): extend `PostgresIntegrationTest` (one shared `postgres:17-alpine` container, tables truncated before each test).
 - Architecture rules are enforced by `auction-app/src/test/java/com/auction/app/architecture/ArchitectureTest.java` (ArchUnit): domain depends only on the JDK and itself, application only on domain + JDK, command and query use cases don't depend on each other, infrastructure never depends on app, controllers never touch repositories (Spring Data, `@Repository`, or `*Repository` ports) and go through use cases instead.
 - To build or test a single module, add `-am` so sibling modules are built too, e.g. `mvn -pl auction-app -am test -Dtest=ArchitectureTest -Dsurefire.failIfNoSpecifiedTests=false`.

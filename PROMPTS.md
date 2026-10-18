@@ -261,6 +261,42 @@ Built in 5 TDD steps. Each step: tests written first and seen failing, then impl
   - An empty page has no `_embedded` key (HAL default).
 - **Verified:** `mvn clean verify` → BUILD SUCCESS: 108 domain/application, 26 infrastructure, 44 app tests.
 
+**Status:** ✅ Validated
+
+---
+
+## Prompt 9 — Spring Security + Keycloak
+
+**Date:** 2026-10-18
+
+### Prompt
+
+> secure with spring security oauth2 resource server + JWT from keycloak. roles from the token (SELLER, BUYER).
+> GET running is public, the rest authenticated. add keycloak to docker-compose with a realm export + 2 test users.
+> update integration tests with jwt() mocks.
+
+### Response
+
+| Commit | Content |
+|---|---|
+| `06e834f` | Domain: `User.register(UserId, …)` for identity-provider ids, `User.updateProfile`, `ProvisionUser` command |
+| `751d56d` | Resource server: Keycloak role converter, security rules, ProblemDetail 401/403, `@CurrentUser` resolver, OpenAPI bearer scheme; `X-User-Id` removed; tests on `jwt()` |
+| `eb051f7` | `docker-compose.yml` (PostgreSQL 17 + Keycloak 26.8.1) and realm export with users `seller`/`seller`, `buyer`/`buyer` |
+
+- **Rules:** `GET /api/auctions/running` + API docs public; everything else authenticated; `POST /api/auctions` needs `SELLER`, `POST /api/auctions/{id}/bids` needs `BUYER` (from `realm_access.roles`). Issuer and audience `auction-api` validated. Domain rules still apply behind it (e.g. own-auction bid is still 403).
+- **Identity:** the token `sub` is the domain `UserId`. On the first write request, the user is created from the token (`name`, `email`, `phone_number`, role); later changes in Keycloak (e.g. a role change) are synced. A token with no or both auction roles, or missing claims → 403 `incomplete-identity`.
+- **Errors:** 401 and 403 from Spring Security are `ProblemDetail` too, with the standard `WWW-Authenticate` header.
+- **Realm export** (`docker/keycloak/bidanddrive-realm.json`): roles SELLER/BUYER, public PKCE client `auction-frontend` (redirect `http://localhost:5173/*`, password grant enabled for local testing), audience mapper, declared `phoneNumber` attribute (Keycloak 24+ drops undeclared attributes) exposed as `phone_number`.
+- **Tests:** MockMvc tests use `jwt()` with Keycloak-shaped claims and the app's real role converter; new `SecurityApiTest` covers 401 (no/invalid token), 403 by role, read access without a role, provisioning, role sync, ambiguous role, missing phone.
+- **End-to-end check with real Keycloak** (compose up, real tokens, jar on PostgreSQL 5433): public list 200, no token 401, buyer creates 403, seller creates 201 with links, seller bids 403, buyer bids 201, bid too low 409, tampered token 401, both users provisioned. Stack taken down afterwards.
+- **Decisions to review:**
+  - Compose PostgreSQL uses host port **5433** (5432 is used by another container on this machine); the app default changed to match.
+  - `GET /api/auctions/{id}` and `GET .../bids` now need a token (as asked), but the public running list links to them.
+  - Users are provisioned on write requests only; read-only callers are not stored.
+  - Two simultaneous first requests of the same new user could both try to insert; unlikely, not handled yet.
+  - **Not done:** CORS for the Vue app (needed once the frontend calls the API from the browser).
+- **Verified:** `mvn clean verify` → BUILD SUCCESS: 116 domain/application, 27 infrastructure, 55 app tests.
+
 **Status:** ⏳ Waiting for your validation
 
 ---
