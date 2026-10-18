@@ -436,6 +436,49 @@ Built in 5 TDD steps. Each step: tests written first and seen failing, then impl
 - README "How to run" and CLAUDE.md commands mention it.
 - **Verified:** shellcheck clean; full run (41 s with cached images); re-run while running; login + create through `localhost:5173` (201); stop → restart keeps the data; clean; a busy port 8080 is reported (exit 1, nothing started); `--test` runs both suites then starts the stack (~1 min). Everything taken down afterwards.
 
+**Status:** ✅ Validated
+
+---
+
+## Prompt 15 — docker-compose.prod.yml
+
+**Date:** 2026-10-18
+
+### Prompt
+
+> add another docker-compose.prod.yml based on the first one and important and secret values should be taken from env vars
+
+### Response
+
+- Prepared `docker-compose.prod.yml`, `.env.prod.example`, `.gitignore` (`.env*` ignored, example kept), `docker/keycloak-prod/bidanddrive-realm.json` and the nginx forwarded headers; **committed and pushed by the user as `1bd3a65`** while the checks were running.
+  - Required secrets / URLs use `${VAR:?…}` (compose fails fast, also on empty values); optional values have defaults.
+  - Keycloak in production mode (`start`) with its own PostgreSQL, behind a TLS proxy (`KC_PROXY_HEADERS=xforwarded`), bootstrap admin from env.
+  - Prod realm: no test users, no password grant, redirect URIs from `${APP_PUBLIC_URL}` (resolved by Keycloak at import).
+  - Databases and backend not published; API docs off unless `API_DOCS_ENABLED=true`; restart policies; HAL links follow `X-Forwarded-Proto` (`SERVER_FORWARD_HEADERS_STRATEGY=framework`).
+- **Verified** with a throwaway env file on non-conflicting ports: fails fast without secrets; 0 users imported; redirect placeholder resolved; password grant off; links `https://…` behind a proxy; a real token (test user created through the admin API) → 201; a token without the `auction-api` audience → 401; API docs 404 when disabled / 200 when enabled (checked on the backend image). Everything removed afterwards.
+- Note: a first check run hit the user's own dev stack (started meanwhile) — every admin call was refused (401), nothing was changed in it.
+
+**Status:** ✅ Validated (committed by the user)
+
+---
+
+## Prompt 16 — Test accounts and README sections
+
+**Date:** 2026-10-18
+
+### Prompt
+
+> if not done, create by default 1 seller and 3 buyers in keycloack and put them in Readme.md file to permit to test, also put keycloak credentials and highlight that part in a separate section and add a sommaire in the readme.md
+
+### Response
+
+| Commit | Content |
+|---|---|
+| `696dec1` | Dev realm users: `seller`, `buyer1`, `buyer2`, `buyer3` (password = username, names, emails, phones); old `buyer` removed; `run.sh` / `CLAUDE.md` updated. Prod realm unchanged (no test users). |
+| `c79ee82` | README: **Sommaire** (table of contents), highlighted **Test accounts and credentials** section (GitHub callouts: dev-only warning, users table, how to test a bid race, Keycloak admin + PostgreSQL credentials, production warning), new **Production** run section, outdated lines updated. |
+
+- **Verified:** real Keycloak — each of the 4 accounts logs in with the right role, name, email, phone and `auction-api` audience; the old `buyer` account is gone. All README anchors and file links checked.
+
 **Status:** ⏳ Waiting for your validation
 
 ---
