@@ -71,6 +71,53 @@ An entry is added once the prompt's work is done **and validated by the user**.
 - **Verified:** `mvn verify` → BUILD SUCCESS (1 test). The jar started against a temporary PostgreSQL 17 container; `/v3/api-docs` and `/swagger-ui.html` returned 200.
 - Not done: no git repo yet, so nothing committed; no `docker-compose.yml` yet.
 
+**Status:** ✅ Validated
+
+---
+
+## Prompt 4 — TDD the domain model
+
+**Date:** 2026-10-18
+
+### Prompt
+
+> in auction-domain, TDD the model. tests first.
+> User: id, fullName, email, phone (all required), role SELLER/BUYER, createdAt, updatedAt
+> Auction: carName, condition GOOD/BAD/EXCELLENT, yearMade, yearRegistered, description, startPrice, currentHighestBid, startDate, endDate, status RUNNING/CANCELLED/ENDED, wonByUserId, version
+> Bid: auctionId, userId, givenPrice, createdAt
+> rules:
+> - only SELLER creates an auction
+> - only BUYER bids, seller cant bid on his own auction
+> - bid > max(startPrice, currentHighestBid)
+> - no bid if not RUNNING or endDate passed
+> - endDate > startDate, yearRegistered >= yearMade, startPrice > 0
+> - close auction -> ENDED + wonByUserId = highest bidder
+> use value objects for money/email/phone, domain exceptions, no setters. inject a Clock for time.
+
+### Response
+
+Built in 5 TDD steps. Each step: tests written first and seen failing, then implemented, `mvn verify` green, one commit.
+
+| Commit | Content |
+|---|---|
+| `7738ad4` | `Money` (non-negative, scale 2), `DomainException`, `DomainValidationException`, `Guard` |
+| `3ab8113` | `User.register(...)`, `Email`, `Phone`, `Role`, `UserId` |
+| `8dfe200` | `Auction.create(...)`, `CarDetails`, `CarCondition`, `AuctionStatus`, `AuctionId` |
+| `5fdbc55` | `Auction.placeBid(...)` → `Bid`, `BidId`, bidding exceptions |
+| `8b1c040` | `Auction.close()`, `Auction.cancel()`, `AuctionNotRunningException` |
+
+- **Packages:** `com.auction.domain.shared`, `.user`, `.auction`.
+- **Domain exceptions** (all extend `DomainException`): `DomainValidationException`, `OnlySellerCanCreateAuctionException`, `OnlyBuyerCanBidException`, `SellerCannotBidOnOwnAuctionException`, `BidTooLowException`, `AuctionNotOpenForBiddingException`, `AuctionNotRunningException`.
+- **Clock:** passed to `User.register` and `Auction.placeBid` (the domain has no DI).
+- **Decisions to review:**
+  - Fields added beyond the spec: `Auction.id`, `sellerId` (needed for the own-auction rule), `highestBidderId` (needed for close), `Bid.id`.
+  - Car fields grouped in a `CarDetails` value object (`auction.getCar().carName()`); `description` is optional.
+  - Bidding window is `[startDate, endDate)`: bids before `startDate` or exactly at `endDate` are rejected.
+  - `close()` only requires RUNNING; it does not check that `endDate` has passed.
+  - Added `cancel()` (RUNNING → CANCELLED) so the CANCELLED status is reachable.
+  - No `restore(...)` factories yet for loading from the DB; to be added with the persistence adapter.
+- **Verified:** `mvn verify` → BUILD SUCCESS, 68 domain tests + 1 app context test. The domain module's only non-test dependency is Lombok (`provided`).
+
 **Status:** ⏳ Waiting for your validation
 
 ---
