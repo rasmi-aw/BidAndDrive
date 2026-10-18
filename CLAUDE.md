@@ -12,7 +12,8 @@ auction_mvp/
 │   └── auction-app/          # Spring Boot app: controllers + configuration
 ├── frontend/                 # Vue 3 + TypeScript + Vite
 ├── docker/keycloak/          # Keycloak realm export (imported on startup)
-└── docker-compose.yml        # local stack: PostgreSQL (5433) + Keycloak (8180)
+├── .github/workflows/ci.yml  # CI on every push: backend verify, frontend test + build, Docker images
+└── docker-compose.yml        # full stack: PostgreSQL (5433), Keycloak (8180), backend (8080), frontend (5173)
 ```
 
 ## Architecture
@@ -77,7 +78,8 @@ Domain logic gets plain unit tests (no Spring context).
 Base package: `com.auction` (`com.auction.domain`, `com.auction.application`, `com.auction.infrastructure`, `com.auction.app`).
 
 ```bash
-docker compose up -d                         # PostgreSQL on 5433, Keycloak on 8180 (admin/admin), realm "bidanddrive"
+docker compose up -d --build                 # full stack: app on http://localhost:5173, API on 8080, Keycloak on 8180 (admin/admin)
+docker compose up -d postgres keycloak       # infrastructure only, to run the backend / Vite locally
 cd backend
 mvn verify                                   # full build + tests (definition of done)
 java -jar auction-app/target/auction-app-0.0.1-SNAPSHOT.jar   # run the app after verify; defaults match docker compose
@@ -89,12 +91,14 @@ curl -s -X POST http://localhost:8180/realms/bidanddrive/protocol/openid-connect
 ```bash
 cd frontend
 npm install
-npm run dev                                  # http://localhost:5173 (backend on 8080 + docker compose running)
+npm run dev                                  # http://localhost:5173 (backend on 8080 + postgres/keycloak running; stop the compose frontend first, same port)
 npm test                                     # Vitest
 npm run build                                # vue-tsc type-check + production bundle
 ```
 
 - App settings (env): `DB_URL` / `DB_USERNAME` / `DB_PASSWORD` (default `localhost:5433/auction`, `auction`/`auction`), `OAUTH2_ISSUER_URI` (default `http://localhost:8180/realms/bidanddrive`), `OAUTH2_AUDIENCE` (default `auction-api`). Compose ports: `POSTGRES_PORT`, `KEYCLOAK_PORT`.
+- Docker: `backend/Dockerfile` (Maven build, tests skipped — CI runs them; Java 25 JRE runtime) and `frontend/Dockerfile` (Vite build, nginx). nginx proxies `/api` with the browser's Host so HAL links stay on `localhost:5173`. In compose the backend validates the issuer `http://localhost:8180/...` (what the browser sees) but fetches JWKS from `http://keycloak:8080` (`SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI`). Keycloak settings are compiled into the frontend bundle (build args `VITE_KEYCLOAK_*`).
+- CI (`.github/workflows/ci.yml`) runs the same commands as the definition of done; keep them in sync when changing build steps.
 - The realm export is the source of truth for roles, clients and test users: edit `docker/keycloak/bidanddrive-realm.json`, then `docker compose down && docker compose up -d` (it is only imported when the realm does not exist).
 
 - Library versions live in `backend/pom.xml` only; child POMs declare dependencies without versions.

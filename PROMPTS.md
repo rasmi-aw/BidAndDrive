@@ -332,6 +332,39 @@ Built in 5 TDD steps. Each step: tests written first and seen failing, then impl
   - **Not tested:** the interactive Keycloak login in a real browser, and UI components (only store/composable/client tests, as asked).
 - **Verified:** `npm test` → 34 passed; `npm run build` → type-check + bundle OK. Backend unchanged.
 
+**Status:** ✅ Validated
+
+---
+
+## Prompt 11 — Docker images, full compose, GitHub Actions
+
+**Date:** 2026-10-18
+
+### Prompt
+
+> add Dockerfiles for backend and frontend, full docker-compose (postgres, keycloak, backend, frontend).
+> github actions: build + test backend, build frontend, on every push.
+
+### Response
+
+| Commit | Content |
+|---|---|
+| `7dfb83a` | `backend/Dockerfile`, `frontend/Dockerfile` + `nginx.conf`, `.dockerignore`s, full `docker-compose.yml` |
+| `3f38ff5` | `.github/workflows/ci.yml` |
+
+- **Backend image:** multi-stage, Maven build with a BuildKit cache for `~/.m2` (tests skipped: CI runs them, they need Docker), `eclipse-temurin:25-jre-alpine` runtime as a non-root user. 292 MB.
+- **Frontend image:** `node:22-alpine` build, `nginx:1.28-alpine` runtime serving the SPA (deep links fall back to `index.html`) and proxying `/api` to the backend with the browser's Host, so HAL links stay on `localhost:5173`. 62 MB.
+- **Compose:** `docker compose up -d --build` → app on `http://localhost:5173`. `docker compose up -d postgres keycloak` still gives infrastructure only for local development.
+- **Issuer vs network:** the browser gets tokens from `localhost:8180`, so the backend container validates that issuer but downloads the signing keys from `keycloak:8080` on the compose network.
+- **CI (on every push):** `backend` = `mvn -B verify` on Java 25 (incl. Testcontainers), surefire reports uploaded on failure; `frontend` = `npm ci`, `npm test`, `npm run build` on Node 22; `docker` = builds both images (no push) after both pass. Linted with actionlint.
+- **Verified:**
+  - Full stack in Docker: SPA + deep link 200, Keycloak URL compiled into the bundle, public list 200 through nginx, seller creates (links on `localhost:5173`), buyer bids 201, no token 401, flipped signature 401, forged `SELLER` claim 401, no backend errors. Stack taken down afterwards.
+  - The CI commands run locally: backend 116 + 27 + 55 tests green, frontend 34 tests + build green.
+- **Decisions to review:**
+  - The `docker` CI job (image build check) was added beyond the request.
+  - The frontend is published on host port **5173** because the Keycloak client only accepts redirects there; it conflicts with `npm run dev` if both run.
+  - **Not done:** pushing images to a registry, and running the workflow on GitHub (nothing pushed).
+
 **Status:** ⏳ Waiting for your validation
 
 ---
