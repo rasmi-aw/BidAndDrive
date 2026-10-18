@@ -540,7 +540,7 @@ Built in 5 TDD steps. Each step: tests written first and seen failing, then impl
 | `98d1932` | App: SSE `GET /api/auctions/{id}/stream` (`connected`/`bid`/`closed`, 20 s heartbeat, `X-Accel-Buffering: no`), authenticated, async dispatch permitted, `stream` HAL link on running auctions |
 | `0d9cc3b` | Kafka (KRaft, `apache/kafka:3.9.2`) in dev + prod compose; `run.sh` port check |
 | `d8b4d91` | Frontend: SSE over `fetch` (bearer token) + parser, `useAuctionStream` (live bids, reload on close, reconnect + catch-up), *Live* badge and highlight |
-| docs commit | CLAUDE.md + README (architecture section with flow, US8, skipped: outbox) |
+| `696713c` | CLAUDE.md + README (architecture section with flow, US8, skipped: outbox) |
 
 - **Decisions to review:**
   - **Broker version 3.9.2, not 4.x:** Spring Boot 3.5 ships kafka-clients 3.9.2, and Testcontainers 1.21 cannot start 4.x brokers (the container exited during the first run).
