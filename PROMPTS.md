@@ -297,6 +297,41 @@ Built in 5 TDD steps. Each step: tests written first and seen failing, then impl
   - **Not done:** CORS for the Vue app (needed once the frontend calls the API from the browser).
 - **Verified:** `mvn clean verify` → BUILD SUCCESS: 116 domain/application, 27 infrastructure, 55 app tests.
 
+**Status:** ✅ Validated
+
+---
+
+## Prompt 10 — Vue 3 frontend
+
+**Date:** 2026-10-18
+
+### Prompt
+
+> in frontend/ create vue 3 + ts + vite app. pages: running auctions list (paged), auction detail with bid form, create auction form for sellers. login via keycloak-js.
+> keep it simple: composables for api calls, pinia only for shared state (auth user + roles, current auction). show backend errors properly (ProblemDetail). use the hateoas links from the api instead of hardcoding urls where it makes sense. add a few vitest tests for the store and composables.
+
+### Response
+
+| Commit | Content |
+|---|---|
+| `7b2b52b` | Scaffold (hand-written, no demo boilerplate), Vite proxy for `/api`, `vue-tsc` in the build |
+| `8380052` | API client: `apiFetch`, `ApiError` with `ProblemDetail` + field errors, HAL helpers, entry points |
+| `0badf71` | keycloak-js (check-sso + PKCE) and the `auth` store (user, realm roles, token refresh) |
+| `1273ce9` | `auction` store + composables `useRunningAuctions`, `usePlaceBid`, `useCreateAuction` |
+| `3eab894` | Router with guard, pages (running list, detail + bid form, create form), `ProblemAlert`, CSS |
+
+- **HATEOAS:** paging follows `next`/`prev`; detail is opened from the list item and refreshed via `self`; bids loaded via `bids`; bidding posts to `place-bid` and the form only appears when that link exists. Hardcoded: only the entry points and `auctionUrl(id)` for deep links.
+- **Errors:** every failed call becomes an `ApiError` with the backend `ProblemDetail`; `ProblemAlert` shows title + detail (+ field list); the create form shows field errors next to inputs; a lost bid (409) shows the reason and reloads the auction to show the new highest bid.
+- **Auth:** session restored at startup (check-sso, PKCE), token refreshed before each call, login redirect for protected pages, "Sell a car" only for SELLER. If Keycloak is down, the public list still works and a notice is shown.
+- **Dev setup:** Vite proxies `/api` to `localhost:8080` keeping the Host header, so HAL links point at `localhost:5173` — no CORS needed in the backend.
+- **Tests:** 34 Vitest tests (HTTP client, HAL helpers, auth store, auction store, the 3 composables).
+- **Integration check:** with compose + backend + `vite`: create via proxy returned links on `localhost:5173`, public list links too, 401 arrived as `application/problem+json`, Keycloak allows CORS from `localhost:5173`, silent SSO page served. Everything stopped afterwards.
+- **Decisions to review:**
+  - **Node 20.18** forces Vite 6 / Vitest 3 / vue-router 4 / Pinia 3 (latest majors need Node ≥ 20.19 or 22).
+  - Money is displayed in **EUR** (the backend has no currency).
+  - **Not tested:** the interactive Keycloak login in a real browser, and UI components (only store/composable/client tests, as asked).
+- **Verified:** `npm test` → 34 passed; `npm run build` → type-check + bundle OK. Backend unchanged.
+
 **Status:** ⏳ Waiting for your validation
 
 ---

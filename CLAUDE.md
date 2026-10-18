@@ -46,6 +46,14 @@ auction_mvp/
 - Spring Security's 401/403 are written as `ProblemDetail` too (`SecurityProblemHandler`), keeping the `WWW-Authenticate` header.
 - OpenAPI via springdoc at `/v3/api-docs` and `/swagger-ui/index.html`; declare status codes with `@ApiResponse`; error bodies are documented as `ProblemDetail` automatically.
 
+### Frontend (`frontend/`)
+- Vue 3 + TypeScript + Vite, Pinia, vue-router, keycloak-js. Versions are pinned to what runs on **Node 20.18** (Vite 6, Vitest 3, vue-router 4, Pinia 3); newer majors need Node ≥ 20.19 / 22.
+- `src/api/`: `apiFetch` (adds the bearer token, throws `ApiError` carrying the backend `ProblemDetail`), HAL helpers (`linkTo`, `requireLink`, `embedded`), types. **Follow HAL links**; only entry points live in `api/endpoints.ts` (`/api/auctions/running`, `/api/auctions`, and `auctionUrl(id)` for deep links).
+- Composables (`src/composables/`) do API calls with their own `loading`/`error` state. Pinia only for shared state: `auth` (user, realm roles, token refresh) and `auction` (current auction + bids).
+- Show errors with `ProblemAlert`; form field errors come from `ApiError.fieldErrors`. Offer actions only when the server sends the link (e.g. bidding needs `place-bid`).
+- In dev, Vite proxies `/api` to the backend (`API_PROXY_TARGET`, default `http://localhost:8080`) and keeps the Host header, so HAL links point at `localhost:5173`; no CORS needed. Keycloak settings: `VITE_KEYCLOAK_URL` / `VITE_KEYCLOAK_REALM` / `VITE_KEYCLOAK_CLIENT_ID`.
+- Tests: Vitest (node environment) in `src/**/__tests__/*.spec.ts`, `fetch` stubbed with `vi.stubGlobal`, keycloak-js mocked with `vi.mock('@/auth/keycloak')`, HAL/problem fixtures in `src/testing/fixtures.ts`.
+
 ## Workflow
 
 ### TDD
@@ -62,6 +70,7 @@ Domain logic gets plain unit tests (no Spring context).
 
 ### Definition of done
 - **Always run `mvn verify` (from `backend/`) and confirm it passes before saying a task is done.** Report failures with their output instead of claiming success.
+- For frontend changes, also run `npm test` and `npm run build` (type-check + bundle) in `frontend/`.
 
 ## Commands
 
@@ -75,6 +84,14 @@ java -jar auction-app/target/auction-app-0.0.1-SNAPSHOT.jar   # run the app afte
 # token for a test user (seller/seller or buyer/buyer):
 curl -s -X POST http://localhost:8180/realms/bidanddrive/protocol/openid-connect/token \
   -d grant_type=password -d client_id=auction-frontend -d username=seller -d password=seller
+```
+
+```bash
+cd frontend
+npm install
+npm run dev                                  # http://localhost:5173 (backend on 8080 + docker compose running)
+npm test                                     # Vitest
+npm run build                                # vue-tsc type-check + production bundle
 ```
 
 - App settings (env): `DB_URL` / `DB_USERNAME` / `DB_PASSWORD` (default `localhost:5433/auction`, `auction`/`auction`), `OAUTH2_ISSUER_URI` (default `http://localhost:8180/realms/bidanddrive`), `OAUTH2_AUDIENCE` (default `auction-api`). Compose ports: `POSTGRES_PORT`, `KEYCLOAK_PORT`.
