@@ -13,7 +13,7 @@ auction_mvp/
 ├── frontend/                 # Vue 3 + TypeScript + Vite
 ├── docker/keycloak/          # Keycloak realm export (imported on startup)
 ├── .github/workflows/ci.yml  # CI on every push: backend verify, frontend test + build, Docker images
-└── docker-compose.yml        # full stack: PostgreSQL (5433), Keycloak (8180), backend (8080), frontend (5173)
+└── docker-compose.yml        # full stack: PostgreSQL (5433), Keycloak (8180), Kafka (9094), backend (8080), frontend (5173)
 ```
 
 ## Architecture
@@ -36,6 +36,12 @@ auction_mvp/
 - Schema is owned by **Flyway** (`auction-infrastructure/src/main/resources/db/migration`); Hibernate runs with `ddl-auto: validate`. Never edit an applied migration; add a new `V<n>__*.sql`. Keep SQL valid on both PostgreSQL and H2 (PostgreSQL mode).
 - JPA entities (`*Entity`) live in `com.auction.infrastructure.persistence.*` and are mapped by static mappers (`*Mapper`); domain objects are rebuilt with `restore(...)` factories.
 - **Optimistic locking on `auctions`** (`@Version`): `AuctionPersistenceAdapter.save` rejects a domain object loaded at an older version and translates Hibernate conflicts into the domain `AuctionConcurrentlyModifiedException`. A use case that saves several aggregates (e.g. `PlaceBid`: auction then bid) must run in one transaction.
+
+### Domain events, Kafka, live updates
+- Aggregates record events (`BidPlaced`, `AuctionClosed`); use cases call `aggregate.pullEvents()` **after saving** and hand them to the `DomainEventPublisher` port. The domain stays pure Java.
+- `SpringDomainEventPublisher` (infra) turns them into Spring application events; `KafkaDomainEventRelay` sends them with `@TransactionalEventListener(AFTER_COMMIT)` to `auction.bids` / `auction.closed` (key = auction id, JSON wire records `*Message`). Never publish to Kafka inside the transaction. Delivery is at-most-once (no outbox yet).
+- `KafkaAuctionEventListener` (unique consumer group per instance, latest offset) calls the `AuctionEventSubscriber` inbound port; `AuctionStreamBroadcaster` (app) implements it and pushes SSE to `GET /api/auctions/{id}/stream` (`connected` / `bid` / `closed`, heartbeat every 20 s). Running auctions carry a `stream` HAL link.
+- Frontend: SSE is read with `fetch` (bearer token; `EventSource` cannot send headers) — `api/sse.ts`, `useAuctionStream`.
 
 ### REST API (`auction-app`)
 - Controllers in `com.auction.app.web.*` call use cases only (never repositories) and map request DTOs (records with Bean Validation) to commands/queries. Format checks live in DTOs; business rules stay in the domain.
@@ -80,7 +86,7 @@ Base package: `com.auction` (`com.auction.domain`, `com.auction.application`, `c
 ```bash
 ./run.sh                                     # build + start the full stack and wait until it answers (./run.sh --help)
 docker compose up -d --build                 # full stack: app on http://localhost:5173, API on 8080, Keycloak on 8180 (admin/admin)
-docker compose up -d postgres keycloak       # infrastructure only, to run the backend / Vite locally
+docker compose up -d postgres keycloak kafka # infrastructure only, to run the backend / Vite locally
 cd backend
 mvn verify                                   # full build + tests (definition of done)
 java -jar auction-app/target/auction-app-0.0.1-SNAPSHOT.jar   # run the app after verify; defaults match docker compose
@@ -107,6 +113,7 @@ npm run build                                # vue-tsc type-check + production b
 - `auction-domain` has a `maven-enforcer` rule that fails the build on any Spring / JPA / Hibernate dependency.
 - The context test uses H2 through the `test` profile (`auction-app/src/test/resources/application-test.yml`); Flyway migrates it and Hibernate validates the mapping.
 - API tests extend `ApiIntegrationTest` (full app, MockMvc, H2, tables cleared before each test; seed users through `UserRepository`). Authenticate with `tokenOf(user)` / `token(sub, claims, roles...)` / `anyToken()`: `jwt()` mocks with Keycloak-shaped claims, mapped by the real `KeycloakRealmRoleConverter`.
-- Infrastructure tests run against real PostgreSQL via Testcontainers (Docker required): extend `PostgresIntegrationTest` (one shared `postgres:17-alpine` container, tables truncated before each test).
+- Infrastructure tests run against real PostgreSQL and Kafka via Testcontainers (Docker required): extend `InfrastructureIntegrationTest` (one shared `postgres:17-alpine` and `apache/kafka:3.9.2` container, tables truncated before each test). Testcontainers 1.21 cannot start Kafka 4.x brokers; keep the broker on the kafka-clients version.
+- The H2 app tests run with `auction.kafka.enabled=false` (no broker): the relay, consumer and topics are off, so SSE tests hand events to `AuctionStreamBroadcaster` directly.
 - Architecture rules are enforced by `auction-app/src/test/java/com/auction/app/architecture/ArchitectureTest.java` (ArchUnit): domain depends only on the JDK and itself, application only on domain + JDK, command and query use cases don't depend on each other, infrastructure never depends on app, controllers never touch repositories (Spring Data, `@Repository`, or `*Repository` ports) and go through use cases instead.
 - To build or test a single module, add `-am` so sibling modules are built too, e.g. `mvn -pl auction-app -am test -Dtest=ArchitectureTest -Dsurefire.failIfNoSpecifiedTests=false`.

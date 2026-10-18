@@ -7,7 +7,8 @@ Sellers put cars up for auction, buyers bid, the highest bid wins.
 | Backend | Java 25, Spring Boot 3.5, Maven multi-module (`auction-domain`, `auction-infrastructure`, `auction-app`), PostgreSQL 17 + Flyway |
 | Security | Spring Security OAuth2 resource server, JWTs from Keycloak 26 (realm roles `SELLER` / `BUYER`) |
 | Frontend | Vue 3 + TypeScript + Vite, Pinia, vue-router, keycloak-js |
-| Tests | JUnit 5, Mockito, ArchUnit, MockMvc (H2), Testcontainers (PostgreSQL), Vitest |
+| Events | Domain events → Kafka 3.9 (published after commit) → Server-Sent Events to the browser |
+| Tests | JUnit 5, Mockito, ArchUnit, MockMvc (H2), Testcontainers (PostgreSQL, Kafka), Vitest |
 | Delivery | Dockerfiles, docker compose (dev + prod), GitHub Actions on every push |
 
 ## Sommaire (table of contents)
@@ -59,7 +60,7 @@ PostgreSQL is published on **5433** because 5432 is often taken; override with `
 Backend from the IDE or the jar, frontend with the Vite dev server. Requires Java 25, Maven 3.9, Node ≥ 20.18, Docker (for PostgreSQL, Keycloak and the Testcontainers tests).
 
 ```bash
-docker compose up -d postgres keycloak        # infrastructure only
+docker compose up -d postgres keycloak kafka  # infrastructure only (Kafka on localhost:9094)
 
 cd backend
 mvn verify                                    # build + all tests
@@ -96,8 +97,8 @@ docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --build
 ### Tests
 
 ```bash
-cd backend && mvn verify                      # 201 tests: domain/use cases, ArchUnit, MockMvc, Testcontainers
-cd frontend && npm test && npm run build      # 34 Vitest tests, vue-tsc type-check, bundle
+cd backend && mvn verify                      # 222 tests: domain/use cases, ArchUnit, MockMvc, Testcontainers (PostgreSQL, Kafka)
+cd frontend && npm test && npm run build      # 47 Vitest tests, vue-tsc type-check, bundle
 ```
 
 CI (`.github/workflows/ci.yml`) runs the same commands on every push, then builds both Docker images.
@@ -197,6 +198,29 @@ Several buyers bid on the same car at the same moment, and each bid reads the au
 - **`ConcurrentBiddingTest` proves it** on real PostgreSQL: two threads, each in its own transaction, are held at a barrier until both have read version 0. Exactly one bid wins and only that bid is stored.
 - **It also found a real bug.** The first adapter version re-read the row before saving, so a stale copy overwrote a newer bid (1500 → 1300) without any error. The version check above fixes it.
 
+### Domain events, Kafka and live bids
+
+```
+PlaceBid ─▶ Auction.placeBid() records BidPlaced ─▶ save ─▶ DomainEventPublisher (port)
+                                                              │  Spring event, held until commit
+                                       COMMIT ──────────────▶ KafkaDomainEventRelay ─▶ topic auction.bids (key = auction id)
+                                                                                            │
+browser ◀── SSE  GET /api/auctions/{id}/stream ◀── AuctionStreamBroadcaster ◀── Kafka consumer (every instance)
+```
+
+- **Events are part of the domain:**
+  - the `Auction` aggregate records `BidPlaced` and `AuctionClosed`, still pure Java;
+  - the use cases hand them to the `DomainEventPublisher` port after saving.
+- **Published only after commit:** an `@TransactionalEventListener(AFTER_COMMIT)` relay sends them to Kafka.
+  - A bid that loses the optimistic-lock race, or any rolled-back change, never reaches Kafka or the browsers.
+  - Testcontainers tests cover commit, rollback and "outside a transaction". A test that replaced the listener with a plain one failed them, which proves they guard the behaviour.
+- **Keyed by auction id,** so the events of one auction stay in order.
+- **Fan-out to every instance:** each backend instance consumes with its own group, so whichever instance a browser is connected to gets every bid.
+- **Live page:** the auction page reads `GET /api/auctions/{id}/stream` (link `stream`) with `fetch` and the bearer token.
+  - New bids update the highest bid live.
+  - The closing reloads the auction.
+  - A dropped stream reconnects and reloads to catch up.
+
 ### Other choices
 
 - **Persistence:** soft delete only. Every table has a `deleted` flag, `@SQLRestriction` hides flagged rows, `@SQLDelete` turns a JPA remove into an UPDATE, and the Spring Data interfaces expose no delete method. Flyway owns the schema and Hibernate only validates it (`ddl-auto=validate`), in tests too.
@@ -268,6 +292,12 @@ Each criterion is covered by an automated test; the main test class is given.
 - Invalid, forged or expired tokens → 401 problem.
 - *Tests:* `SecurityApiTest`, `KeycloakRealmRoleConverterTest`, `ProvisionUserUseCaseTest`, `auth.spec.ts`
 
+### US8 — I see new bids live on the auction page
+- While an auction is RUNNING it has a `stream` link; `GET /api/auctions/{id}/stream` (authenticated) sends `connected`, then a `bid` for every accepted bid and a `closed` when it ends (then the stream ends). An unknown auction → 404, no token → 401.
+- Events are published only after the bid's transaction commits; rolled-back or rejected bids are never pushed.
+- The page shows a *Live* badge, updates the highest bid and the bid history without reloading, ignores duplicate or stale events, reloads on closing, and reconnects (catching up) after a drop.
+- *Tests:* `AuctionEventsTest`, `PlaceBidUseCaseTest`, `CloseAuctionUseCaseTest`, `KafkaDomainEventsTest`, `AuctionStreamApiTest`, `sse.spec.ts`, `useAuctionStream.spec.ts`, `auction.spec.ts`
+
 ---
 
 ## What was skipped, and why
@@ -282,6 +312,7 @@ Each criterion is covered by an automated test; the main test class is given.
 | Unique email in `users` | With soft delete it requires a partial unique index (`WHERE deleted = false`), which is PostgreSQL-only, while tests also run on H2. Keycloak already guarantees unique emails. |
 | Race on a brand-new user's first two simultaneous requests | Both could try to create the user; unlikely in practice and not handled yet. |
 | Currency | One implicit currency; the UI shows EUR. |
+| Guaranteed event delivery | Events go to Kafka right after the commit (at-most-once): if the broker is down at that moment, the event is lost (logged). The bid itself is saved, and the page catches up on its next reload or reconnect. A transactional outbox table would make delivery at-least-once. |
 | Production hosting | `docker-compose.prod.yml` exists (secrets from env, Keycloak in production mode, no test users). Not included: the TLS reverse proxy itself, pushing images to a registry, backups and monitoring. |
 | UI component tests, browser end-to-end tests | The tests cover the store, composables and HTTP client. The real Keycloak login was checked manually through the stack, not automated. |
 | Latest frontend tool majors | Node 20.18 (the local version) limits the stack to Vite 6 / Vitest 3 / vue-router 4 / Pinia 3. Upgrading Node to 22 allows the newer majors. |
