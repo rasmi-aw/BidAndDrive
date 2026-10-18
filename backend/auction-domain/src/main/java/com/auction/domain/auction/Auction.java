@@ -9,6 +9,7 @@ import lombok.AccessLevel;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
 
+import java.time.Clock;
 import java.time.Instant;
 import java.util.Optional;
 
@@ -26,6 +27,8 @@ public final class Auction {
     private final Money startPrice;
     @Getter(AccessLevel.NONE)
     private Money currentHighestBid;
+    @Getter(AccessLevel.NONE)
+    private UserId highestBidderId;
     private final Instant startDate;
     private final Instant endDate;
     private AuctionStatus status;
@@ -60,8 +63,50 @@ public final class Auction {
         return new Auction(AuctionId.newId(), seller.getId(), car, startPrice, startDate, endDate, AuctionStatus.RUNNING, 0);
     }
 
+    /**
+     * Accepts a bid if the bidder is a BUYER other than the seller, the auction is RUNNING within
+     * [startDate, endDate), and the amount is greater than both the start price and the current highest bid.
+     */
+    public Bid placeBid(User bidder, Money amount, Clock clock) {
+        Guard.notNull(bidder, "bidder");
+        Guard.notNull(amount, "amount");
+        Instant now = Guard.notNull(clock, "clock").instant();
+
+        if (bidder.getId().equals(sellerId)) {
+            throw new SellerCannotBidOnOwnAuctionException(id);
+        }
+        if (!bidder.isBuyer()) {
+            throw new OnlyBuyerCanBidException(bidder.getId());
+        }
+        ensureOpenForBidding(now);
+        Money minimumExclusive = getCurrentHighestBid().map(startPrice::max).orElse(startPrice);
+        if (!amount.isGreaterThan(minimumExclusive)) {
+            throw new BidTooLowException(amount, minimumExclusive);
+        }
+
+        currentHighestBid = amount;
+        highestBidderId = bidder.getId();
+        return new Bid(BidId.newId(), id, bidder.getId(), amount, now);
+    }
+
+    private void ensureOpenForBidding(Instant now) {
+        if (status != AuctionStatus.RUNNING) {
+            throw new AuctionNotOpenForBiddingException(id, "status is " + status);
+        }
+        if (now.isBefore(startDate)) {
+            throw new AuctionNotOpenForBiddingException(id, "starts at " + startDate);
+        }
+        if (!now.isBefore(endDate)) {
+            throw new AuctionNotOpenForBiddingException(id, "ended at " + endDate);
+        }
+    }
+
     public Optional<Money> getCurrentHighestBid() {
         return Optional.ofNullable(currentHighestBid);
+    }
+
+    public Optional<UserId> getHighestBidderId() {
+        return Optional.ofNullable(highestBidderId);
     }
 
     public Optional<UserId> getWonByUserId() {
