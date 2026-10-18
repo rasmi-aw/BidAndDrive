@@ -1,6 +1,7 @@
 package com.auction.infrastructure.persistence.auction;
 
 import com.auction.domain.auction.Auction;
+import com.auction.domain.auction.AuctionConcurrentlyModifiedException;
 import com.auction.domain.auction.AuctionId;
 import com.auction.domain.auction.AuctionRepository;
 import com.auction.domain.auction.AuctionStatus;
@@ -23,6 +24,7 @@ import static com.auction.infrastructure.PersistenceFixtures.newBuyer;
 import static com.auction.infrastructure.PersistenceFixtures.newRunningAuction;
 import static com.auction.infrastructure.PersistenceFixtures.newSeller;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class AuctionPersistenceAdapterTest extends PostgresIntegrationTest {
 
@@ -70,6 +72,23 @@ class AuctionPersistenceAdapterTest extends PostgresIntegrationTest {
         assertThat(reloaded.getCurrentHighestBid()).contains(Money.of("1500"));
         assertThat(reloaded.getHighestBidderId()).contains(buyer.getId());
         assertThat(reloaded.getVersion()).isEqualTo(1);
+    }
+
+    @Test
+    void staleCopyCannotOverwriteANewerVersion() {
+        Auction auction = auctionRepository.save(newRunningAuction(seller));
+        Auction first = auctionRepository.findById(auction.getId()).orElseThrow();
+        Auction stale = auctionRepository.findById(auction.getId()).orElseThrow();
+        first.placeBid(buyer, Money.of("1500"), CLOCK);
+        auctionRepository.save(first);
+
+        stale.placeBid(userRepository.save(newBuyer()), Money.of("1300"), CLOCK);
+
+        assertThatThrownBy(() -> auctionRepository.save(stale))
+                .isInstanceOf(AuctionConcurrentlyModifiedException.class);
+        Auction stored = auctionRepository.findById(auction.getId()).orElseThrow();
+        assertThat(stored.getCurrentHighestBid()).contains(Money.of("1500"));
+        assertThat(stored.getVersion()).isEqualTo(1);
     }
 
     @Test
