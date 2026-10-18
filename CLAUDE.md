@@ -30,7 +30,10 @@ auction_mvp/
 - Use cases get time from an injected `Clock`.
 
 ### Persistence rules
-- **Soft delete only — never hard delete.** Mark records as deleted (e.g. `deletedAt` / `deleted` flag) and exclude them from queries by default. No `DELETE` statements, no `repository.delete(...)`.
+- **Soft delete only — never hard delete.** Every table has a `deleted` flag. Entities carry `@SQLRestriction("deleted = false")` (flagged rows are invisible to all JPA reads) and `@SQLDelete` (a JPA remove becomes an UPDATE). Spring Data interfaces extend the bare `Repository` and declare only the methods they need, so no delete method exists. No `DELETE` statements in production code.
+- Schema is owned by **Flyway** (`auction-infrastructure/src/main/resources/db/migration`); Hibernate runs with `ddl-auto: validate`. Never edit an applied migration; add a new `V<n>__*.sql`. Keep SQL valid on both PostgreSQL and H2 (PostgreSQL mode).
+- JPA entities (`*Entity`) live in `com.auction.infrastructure.persistence.*` and are mapped by static mappers (`*Mapper`); domain objects are rebuilt with `restore(...)` factories.
+- **Optimistic locking on `auctions`** (`@Version`): `AuctionPersistenceAdapter.save` rejects a domain object loaded at an older version and translates Hibernate conflicts into the domain `AuctionConcurrentlyModifiedException`. A use case that saves several aggregates (e.g. `PlaceBid`: auction then bid) must run in one transaction.
 
 ## Workflow
 
@@ -61,6 +64,7 @@ java -jar auction-app/target/auction-app-0.0.1-SNAPSHOT.jar   # run the app afte
 
 - Library versions live in `backend/pom.xml` only; child POMs declare dependencies without versions.
 - `auction-domain` has a `maven-enforcer` rule that fails the build on any Spring / JPA / Hibernate dependency.
-- The context test uses H2 through the `test` profile (`auction-app/src/test/resources/application-test.yml`).
+- The context test uses H2 through the `test` profile (`auction-app/src/test/resources/application-test.yml`); Flyway migrates it and Hibernate validates the mapping.
+- Infrastructure tests run against real PostgreSQL via Testcontainers (Docker required): extend `PostgresIntegrationTest` (one shared `postgres:17-alpine` container, tables truncated before each test).
 - Architecture rules are enforced by `auction-app/src/test/java/com/auction/app/architecture/ArchitectureTest.java` (ArchUnit): domain depends only on the JDK and itself, application only on domain + JDK, command and query use cases don't depend on each other, infrastructure never depends on app, controllers never touch repositories (Spring Data, `@Repository`, or `*Repository` ports) and go through use cases instead.
 - To build or test a single module, add `-am` so sibling modules are built too, e.g. `mvn -pl auction-app -am test -Dtest=ArchitectureTest -Dsurefire.failIfNoSpecifiedTests=false`.

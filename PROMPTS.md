@@ -178,6 +178,41 @@ Built in 5 TDD steps. Each step: tests written first and seen failing, then impl
 - New ArchUnit rules checked against throwaway violating classes: all 3 failed as expected; the classes were then removed.
 - **Verified:** `mvn clean verify` → BUILD SUCCESS: 92 tests in the domain module (model + use cases) and 8 in the app module (context test + 7 architecture rules).
 
+**Status:** ✅ Validated
+
+---
+
+## Prompt 7 — JPA adapters, optimistic locking, soft delete
+
+**Date:** 2026-10-18
+
+### Prompt
+
+> implement the jpa adapters in auction-infrastructure, separate jpa entities from domain + mappers.
+> optimistic locking with @Version on auction because multiple buyers bid on the same car at the same time.
+> soft delete with a deleted flag. postgres for runtime, h2 or testcontainers for tests.
+> write a concurrency test: 2 bids at the same time, only one wins.
+
+### Response
+
+| Commit | Content |
+|---|---|
+| `efca04f` | Domain: `Auction.restore` / `User.restore` (structural invariants still checked), `UserRepository.save`, `AuctionConcurrentlyModifiedException` |
+| `c1b8840` | `UserEntity`, `AuctionEntity` (`@Version`), `BidEntity` + static mappers; Flyway `V1__create_schema.sql`; soft delete with `deleted` flag + `@SQLRestriction` + `@SQLDelete` |
+| `d64f33a` | Adapters for `UserRepository`, `AuctionRepository`, `BidRepository`, `AuctionReadRepository`; Testcontainers PostgreSQL tests |
+| `7262ed9` | Optimistic locking fix + concurrency test |
+
+- **Separation:** entities and Spring Data interfaces are package-private infra details; adapters map to/from domain objects. Spring Data interfaces extend the bare `Repository`, so **no delete method exists**.
+- **Databases:** PostgreSQL at runtime; infra tests use Testcontainers `postgres:17-alpine`; the app context test uses H2 (PostgreSQL mode). Flyway migrates both and Hibernate `validate`s the mapping.
+- **Concurrency test** (`ConcurrentBiddingTest`): two buyers bid 1200 and 1300 through the real `PlaceBidUseCase`, each in its own thread and transaction. A barrier makes both load version 0 before either writes. Result: exactly one bid wins; the other gets `AuctionConcurrentlyModifiedException`; the auction is at version 1 with the winner's amount; only the winner's bid row exists. Stable over 3 runs.
+- **Bug found by TDD:** the first adapter version re-read the row inside `save`, so a stale copy **silently overwrote a newer bid** (lost update). Fixed by comparing the domain object's version with the stored one, and turning Hibernate conflicts into the domain exception.
+- **Decisions to review:**
+  - Flyway added (`flyway-core`, `flyway-database-postgresql`): it wasn't in the dependency list, but `validate` against PostgreSQL needs a managed schema.
+  - Domain enums (`Role`, `CarCondition`, `AuctionStatus`) are reused in entities, stored as strings.
+  - No unique constraint on `users.email` yet: with soft delete it needs a partial index (PostgreSQL only).
+  - **Not done yet:** transactional wiring of the use cases in `auction-app` (`PlaceBid` must be one transaction), and HTTP 409 mapping for the concurrency exception.
+- **Verified:** `mvn clean verify` → BUILD SUCCESS: 99 domain/application, 21 infrastructure (Testcontainers), 8 app tests.
+
 **Status:** ⏳ Waiting for your validation
 
 ---
