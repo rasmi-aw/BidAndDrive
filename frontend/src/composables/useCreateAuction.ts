@@ -1,7 +1,7 @@
 import { computed, ref } from 'vue'
 import { AUCTIONS } from '@/api/endpoints'
-import { type ApiError, apiFetch, toApiError } from '@/api/http'
-import type { Auction, CarCondition, NewAuction } from '@/api/types'
+import { ApiError, apiFetch, toApiError } from '@/api/http'
+import type { Auction, CarCondition, FieldError, NewAuction } from '@/api/types'
 
 /** Form model: numbers may be empty, dates come from datetime-local inputs (user's time zone). */
 export interface AuctionForm {
@@ -22,6 +22,15 @@ export function useCreateAuction() {
   const fieldErrors = computed(() => error.value?.fieldErrors ?? {})
 
   async function create(form: AuctionForm): Promise<Auction | undefined> {
+    const localErrors = validate(form)
+    if (localErrors.length) {
+      error.value = new ApiError(400, {
+        title: 'Validation failed',
+        detail: 'Please correct the highlighted fields.',
+        errors: localErrors,
+      })
+      return undefined
+    }
     submitting.value = true
     error.value = null
     try {
@@ -35,6 +44,18 @@ export function useCreateAuction() {
   }
 
   return { create, submitting, error, fieldErrors }
+}
+
+/**
+ * Cross-field rules checked before calling the API, for immediate feedback next to the field.
+ * The server checks the same rules; missing values are left to it.
+ */
+function validate(form: AuctionForm): FieldError[] {
+  const errors: FieldError[] = []
+  if (form.yearMade !== null && form.yearRegistered !== null && form.yearRegistered < form.yearMade) {
+    errors.push({ field: 'yearRegistered', message: `must not be before the year made (${form.yearMade})` })
+  }
+  return errors
 }
 
 /** Empty values are sent as null so the server reports them as missing fields. */

@@ -58,7 +58,7 @@ async function submit(): Promise<void> {
       </label>
       <label>
         Year registered
-        <input v-model.number="form.yearRegistered" type="number" min="1886" />
+        <input v-model.number="form.yearRegistered" type="number" :min="form.yearMade ?? 1886" />
         <small v-if="fieldErrors.yearRegistered" class="field-error">{{ fieldErrors.yearRegistered }}</small>
       </label>
     </div>

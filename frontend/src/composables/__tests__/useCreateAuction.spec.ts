@@ -63,6 +63,37 @@ describe('useCreateAuction', () => {
     expect(error.value?.status).toBe(400)
   })
 
+  it('refuses a registration year before the year made, without calling the API', async () => {
+    const { create, fieldErrors, error } = useCreateAuction()
+
+    await expect(create(form({ yearMade: 2022, yearRegistered: 2021 }))).resolves.toBeUndefined()
+
+    expect(fetchMock).not.toHaveBeenCalled()
+    expect(fieldErrors.value).toEqual({ yearRegistered: 'must not be before the year made (2022)' })
+    expect(error.value?.status).toBe(400)
+  })
+
+  it('accepts a registration in the year the car was made', async () => {
+    fetchMock.mockResolvedValueOnce(halResponse(auction({ id: 'new-2' }), 201))
+    const { create, fieldErrors } = useCreateAuction()
+
+    await expect(create(form({ yearMade: 2022, yearRegistered: 2022 }))).resolves.toMatchObject({ id: 'new-2' })
+    expect(fieldErrors.value).toEqual({})
+  })
+
+  it('leaves missing years to the server, which reports them per field', async () => {
+    fetchMock.mockResolvedValueOnce(problemResponse({
+      type: 'urn:bidanddrive:problem:validation', title: 'Validation failed', status: 400,
+      errors: [{ field: 'yearMade', message: 'must not be null' }],
+    }))
+    const { create, fieldErrors } = useCreateAuction()
+
+    await create(form({ yearMade: null, yearRegistered: 2021 }))
+
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(fieldErrors.value).toEqual({ yearMade: 'must not be null' })
+  })
+
   it('surfaces business rule problems that are not tied to a field', async () => {
     fetchMock.mockResolvedValueOnce(problemResponse({
       type: 'urn:bidanddrive:problem:invalid-value', title: 'Invalid value', status: 400,
