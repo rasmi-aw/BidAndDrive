@@ -77,6 +77,26 @@ class CreateAuctionApiTest extends ApiIntegrationTest {
     }
 
     @Test
+    void registrationBeforeManufactureIsABadRequest() throws Exception {
+        String json = auctionJson(now(), now().plus(Duration.ofDays(1)), "1000")
+                .replace("\"yearMade\": 2018", "\"yearMade\": 2020");
+
+        postAuction(seller(), json)
+                .andExpect(status().isBadRequest())
+                .andExpect(content().contentTypeCompatibleWith(PROBLEM_JSON))
+                .andExpect(jsonPath("$.type").value("urn:bidanddrive:problem:invalid-value"))
+                .andExpect(jsonPath("$.detail", containsString("yearRegistered")));
+    }
+
+    @Test
+    void registrationInTheYearOfManufactureIsAccepted() throws Exception {
+        String json = auctionJson(now(), now().plus(Duration.ofDays(1)), "1000")
+                .replace("\"yearMade\": 2018", "\"yearMade\": 2019");
+
+        postAuction(seller(), json).andExpect(status().isCreated());
+    }
+
+    @Test
     void unknownEnumValueOrMalformedJsonIsABadRequest() throws Exception {
         postAuction(seller(), auctionJson(now(), now().plus(Duration.ofDays(1)), "1000").replace("GOOD", "SHINY"))
                 .andExpect(status().isBadRequest())
