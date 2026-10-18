@@ -1,0 +1,9 @@
+<!doctype html>
+<html>
+  <body>
+    <!-- keycloak-js "check-sso": reports the login state back to the app without a full-page redirect -->
+    <script>
+      parent.postMessage(location.href, location.origin)
+    </script>
+  </body>
+</html>
